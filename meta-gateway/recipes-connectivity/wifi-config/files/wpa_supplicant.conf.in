@@ -1,9 +1,0 @@
-ctrl_interface=/var/run/wpa_supplicant
-update_config=1
-country=DE
-
-network={
-    ssid="@SSID@"
-    psk="@PSK@"
-    key_mgmt=WPA-PSK
-}
