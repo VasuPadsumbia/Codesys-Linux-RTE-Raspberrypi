@@ -1,0 +1,28 @@
+# KAS configuration — QEMU x86-64 for CI/CD testing
+# Boots a minimal image, runs cyclictest and WebUI unit tests.
+# No RPi-specific packages — fast build, no hardware required.
+#
+# Build:  ./cclrte.sh build qemu
+#         kas build kas/qemu-x86-64.yml
+header:
+  version: 14
+
+includes:
+  - base.yml
+
+machine: qemux86-64
+target: cclrte-image-qemu
+
+local_conf_header:
+  qemu: |
+    QB_SYSTEM_NAME = "qemu-system-x86_64"
+
+    # Enable KVM hardware acceleration when /dev/kvm is available.
+    # Falls back to software emulation silently when it is not.
+    QB_OPT_APPEND:append = " -cpu host,+kvm_pv_unhalt -enable-kvm"
+
+    # Kernel boot args that approximate a PREEMPT_RT isolcpus setup in QEMU
+    QB_KERNEL_CMDLINE_APPEND = "console=ttyS0,115200 threadirqs preempt=full"
+
+    # Disable RPi-only firmware features
+    RPI_USE_U_BOOT = "0"

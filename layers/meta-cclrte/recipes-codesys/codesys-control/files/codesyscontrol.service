@@ -1,0 +1,37 @@
+[Unit]
+Description=CODESYS Control for Linux SL Runtime
+Documentation=https://store.codesys.com https://github.com/user/codesys-control-linux-rte/docs/USER_GUIDE.md
+After=network.target rt-setup.service ethercat.service
+Wants=ethercat.service
+Requires=rt-setup.service
+
+[Service]
+Type=forking
+PIDFile=/run/codesys/codesyscontrol.pid
+RuntimeDirectory=codesys
+RuntimeDirectoryMode=0755
+
+ExecStartPre=/usr/sbin/codesys-setup.sh
+ExecStart=/opt/codesys/bin/codesyscontrol -d -c /etc/CODESYSControl.cfg
+ExecStop=/opt/codesys/bin/codesyscontrol -k
+
+Restart=on-failure
+RestartSec=5s
+
+# Real-time scheduling (reinforces CODESYSControl.cfg settings)
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=80
+# CPU3 — isolated RT core for CODESYS scan cycle
+CPUAffinity=3
+
+# Memory lock — no swap, no page faults during scan cycle
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+LimitSTACK=8388608
+
+# Hardware watchdog notification
+WatchdogSec=10s
+NotifyAccess=main
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=CCLRTE RT Latency Verification (cyclictest)
+Documentation=https://github.com/user/codesys-control-linux-rte/docs/LIMITATIONS.md
+After=rt-setup.service
+# Only run once at first boot — result file acts as a stamp
+ConditionPathExists=!/var/log/cclrte-rt-result.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/run-cyclictest.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

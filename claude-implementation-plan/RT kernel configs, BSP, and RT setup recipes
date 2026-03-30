@@ -1,0 +1,397 @@
+Implement these files for a Yocto CODESYS Control Linux RTE project. Write COMPLETE content for every file, no placeholders.
+
+Project context:
+- Layer: meta-cclrte, Yocto scarthgap
+- Target: Raspberry Pi 4B 4GB, motion control PLC
+- RT approach: PREEMPT_RT primary (isolcpus=2,3 for EtherCAT+CODESYS), Xenomai as upgrade
+- CPU layout: CPU0,1=Linux; CPU2=EtherCAT SCHED_FIFO prio90; CPU3=CODESYS SCHED_FIFO prio80
+- All Python in venv
+
+---
+
+FILE 1: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux/linux-raspberrypi_%.bbappend
+
+Apply 3 kernel config fragments for RT. FILESEXTRAPATHS:prepend. SRC_URI:append all 3 cfg files. Also append to KERNEL_FEATURES to ensure RT config is applied. Add: KERNEL_EXTRA_FEATURES:append = " features/latencytop/latencytop.scc" but only if available, use try-append. Set LINUX_VERSION_EXTENSION = "-cclrte-rt". Add to SRC_URI the 3 cfg files.
+
+---
+
+FILE 2: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux/files/cclrte-rt.cfg
+
+Kernel config fragment for PREEMPT_RT on RPi4. Must set:
+CONFIG_PREEMPT_RT=y (or if not available: CONFIG_PREEMPT=y)
+CONFIG_HZ_1000=y
+CONFIG_HZ=1000
+CONFIG_HIGH_RES_TIMERS=y
+CONFIG_NO_HZ_FULL=y
+CONFIG_RCU_NOCB_CPU=y
+CONFIG_CPU_ISOLATION=y
+CONFIG_IRQ_FORCED_THREADING=y
+CONFIG_THREAD_INFO_IN_TASK=y
+# RT mutex
+CONFIG_RT_MUTEXES=y
+CONFIG_PREEMPT_RCU=y
+# Timer frequency
+CONFIG_HZ_PERIODIC=n
+CONFIG_NO_HZ_IDLE=n
+CONFIG_NO_HZ_FULL=y
+# Memory
+CONFIG_COMPACTION=n  # reduces latency spikes
+CONFIG_KSM=n
+CONFIG_TRANSPARENT_HUGEPAGE=n
+
+---
+
+FILE 3: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux/files/cclrte-latency.cfg
+
+Kernel config fragment for minimum latency. Include:
+CONFIG_PREEMPT_NOTIFIERS=y
+CONFIG_HRTIMER_RESOLUTION=y (if exists, else comment out)
+CONFIG_TICK_ONESHOT=y
+CONFIG_GENERIC_CLOCKEVENTS=y
+CONFIG_GENERIC_CLOCKEVENTS_BROADCAST=y
+# IRQ threading
+CONFIG_GENERIC_IRQ_CHIP=y
+# PM - disable power states that add latency
+CONFIG_CPU_IDLE=n
+CONFIG_ARM_CPUIDLE=n
+CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y
+CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
+CONFIG_CPU_FREQ_GOV_POWERSAVE=n
+CONFIG_CPU_FREQ_GOV_ONDEMAND=n
+CONFIG_CPU_FREQ_GOV_CONSERVATIVE=n
+CONFIG_CPU_FREQ_GOV_SCHEDUTIL=n
+# NUMA
+CONFIG_NUMA_BALANCING=n
+# Watchdog
+CONFIG_BCM2835_WDT=y
+CONFIG_WATCHDOG=y
+
+---
+
+FILE 4: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux/files/cclrte-disable-debug.cfg
+
+Kernel config to disable debug features that add jitter:
+CONFIG_DEBUG_PREEMPT=n
+CONFIG_LATENCYTOP=n
+CONFIG_SCHED_DEBUG=n
+CONFIG_DEBUG_TIMEKEEPING=n
+CONFIG_FTRACE=n
+CONFIG_FUNCTION_TRACER=n
+CONFIG_FUNCTION_GRAPH_TRACER=n
+CONFIG_IRQSOFF_TRACER=n
+CONFIG_PREEMPT_TRACER=n
+CONFIG_SCHED_TRACER=n
+CONFIG_NOP_TRACER=n
+CONFIG_TRACING=n
+CONFIG_GENERIC_TRACER=n
+CONFIG_TRACE_CLOCK=n
+CONFIG_RING_BUFFER=n
+CONFIG_DYNAMIC_FTRACE=n
+CONFIG_KPROBES=n
+CONFIG_PERF_EVENTS=y  # keep for cyclictest
+CONFIG_DEBUG_SPINLOCK=n
+CONFIG_DEBUG_MUTEXES=n
+CONFIG_DEBUG_LOCK_ALLOC=n
+CONFIG_PROVE_LOCKING=n
+CONFIG_LOCK_STAT=n
+CONFIG_DEBUG_ATOMIC_SLEEP=n
+
+---
+
+FILE 5: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-bsp/rpi-config/rpi-config_%.bbappend
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+SRC_URI:append = " file://config.txt.fragment"
+
+do_deploy:append() that appends the fragment content to the deployed config.txt. Use cat >> to append to ${DEPLOYDIR}/bcm2711-rpi-4-b.dtb ... actually append to the config.txt in deploy dir. The correct approach is to append to ${DEPLOYDIR}/bootfiles/config.txt or use RPI_EXTRA_CONFIG variable approach. Use:
+
+RPI_EXTRA_CONFIG:append = "\n\
+# CCLRTE Real-time settings\n\
+force_turbo=1\n\
+arm_freq=1800\n\
+arm_freq_min=1800\n\
+over_voltage=2\n\
+disable_splash=1\n\
+gpu_mem=16\n\
+dtparam=watchdog=on\n\
+dtoverlay=disable-bt\n\
+enable_uart=1\n\
+dtparam=spi=on\n\
+dtparam=i2c_arm=on\n\
+"
+
+Just set the variable, no do_deploy needed.
+
+---
+
+FILE 6: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-bsp/rpi-config/files/config.txt.fragment
+
+The actual content:
+# CCLRTE Real-time configuration
+# Locked frequency - no thermal throttle interference
+force_turbo=1
+arm_freq=1800
+arm_freq_min=1800
+over_voltage=2
+# Minimal GPU memory
+gpu_mem=16
+# Hardware watchdog
+dtparam=watchdog=on
+# Disable Bluetooth (frees UART for RS485/Modbus)
+dtoverlay=disable-bt
+# Enable UART
+enable_uart=1
+# SPI for IO-Link/EtherCAT HAT
+dtparam=spi=on
+# I2C for sensors
+dtparam=i2c_arm=on
+# Disable splash
+disable_splash=1
+# Disable rainbow splash
+disable_overscan=1
+
+---
+
+FILE 7: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-setup/rt-setup_1.0.bb
+
+DESCRIPTION = "Real-time system tuning for CODESYS motion control"
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=..."
+
+inherit systemd
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+SRC_URI = all files: rt-setup.sh, rt-setup.service, rt-sysctl.conf, cpu-motion.conf, cpufreq-setup.sh
+
+SYSTEMD_SERVICE:${PN} = "rt-setup.service"
+SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
+do_install installs:
+- rt-setup.sh to ${D}${sbindir}/rt-setup.sh (0755)
+- cpufreq-setup.sh to ${D}${sbindir}/cpufreq-setup.sh (0755)
+- rt-setup.service to ${D}${systemd_system_unitdir}/
+- rt-sysctl.conf to ${D}${sysconfdir}/sysctl.d/99-cclrte-rt.conf
+- cpu-motion.conf to ${D}${sysconfdir}/systemd/system.conf.d/99-cclrte-motion.conf
+
+RDEPENDS:${PN} = "bash"
+
+---
+
+FILE 8: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-setup/files/rt-setup.service
+
+[Unit]
+Description=CCLRTE Real-time System Setup
+Documentation=https://github.com/user/codesys-control-linux-rte
+DefaultDependencies=no
+After=local-fs.target sysinit.target
+Before=codesyscontrol.service ethercat.service
+Wants=cpufreq-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/rt-setup.sh
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
+
+---
+
+FILE 9: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-setup/files/rt-setup.sh
+
+Complete bash script (set -euo pipefail) that:
+
+1. Log function: log() { echo "[$(date -Iseconds)] CCLRTE-RT: $*" | tee -a /var/log/cclrte-rt.log; }
+
+2. Set IRQ affinity: all IRQs to CPU0,1 (smp_affinity_list = 0-1 for each /proc/irq/*/smp_affinity_list)
+
+3. Find EtherCAT NIC IRQ (search for the NIC used for EtherCAT - eth0 by default, get its IRQ from /proc/interrupts) and set its smp_affinity_list to CPU2
+
+4. Set EtherCAT process to SCHED_FIFO priority 90 when it exists (use chrt -f -p 90 <pid>). Loop via pgrep ec_master or ethercat-related process.
+
+5. Set CODESYS process to SCHED_FIFO priority 80 when it exists (pgrep codesyscontrol or codesysruntime)
+
+6. Set CODESYS process memory lock: use prlimit to set RLIMIT_MEMLOCK=unlimited for codesys PID
+
+7. Set kernel.sched_rt_runtime_us=-1 via sysctl (already in sysctl.conf but do it here too as belt-and-suspenders)
+
+8. Log completion and latency hint: suggest running rt-verify
+
+Include a function wait_for_process() that waits up to 30s for a process to appear.
+
+---
+
+FILE 10: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-setup/files/rt-sysctl.conf
+
+Complete sysctl conf for RT with comments explaining each:
+kernel.sched_rt_runtime_us = -1    # Remove RT bandwidth throttle (CODESYS watchdog replaces safety)
+kernel.sched_rt_period_us = 1000000
+vm.swappiness = 0                   # Never swap - page faults kill RT
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 5
+vm.min_free_kbytes = 65536          # Keep memory available
+kernel.hung_task_timeout_secs = 0  # Disable hung task detector (false positives with RT)
+kernel.nmi_watchdog = 0             # NMI watchdog causes latency
+kernel.watchdog = 0                 # Replaced by hardware watchdog
+net.core.busy_poll = 50             # Reduce network latency for OPC-UA/MQTT
+net.core.busy_read = 50
+kernel.pid_max = 65536
+fs.file-max = 100000
+
+---
+
+FILE 11: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-setup/files/cpu-motion.conf
+
+systemd system.conf.d snippet that limits all non-RT systemd services to CPUs 0-1:
+[Manager]
+# Confine all system services to CPU0 and CPU1
+# CPU2 (EtherCAT) and CPU3 (CODESYS motion) are reserved for RT tasks
+CPUAffinity=0 1
+
+---
+
+FILE 12: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-setup/files/cpufreq-setup.sh
+
+Bash script that:
+1. Sets all CPUs to performance governor (echo performance > /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor)
+2. Disables CPU idle states for CPU2 and CPU3 (echo 1 > /sys/devices/system/cpu/cpu2/cpuidle/state*/disable)
+3. Sets min freq = max freq for CPU2,3
+4. Logs results
+
+---
+
+FILE 13: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-verify/rt-verify_1.0.bb
+
+DESCRIPTION = "RT latency verification using cyclictest"
+LICENSE = "MIT"
+inherit systemd
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+SRC_URI = run-cyclictest.sh, rt-verify.service
+SYSTEMD_SERVICE = "rt-verify.service"
+SYSTEMD_AUTO_ENABLE = "enable"
+do_install: install scripts and service
+RDEPENDS = "rt-tests bash"
+
+---
+
+FILE 14: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-verify/files/run-cyclictest.sh
+
+Complete bash script:
+1. Run cyclictest: cyclictest --mlockall --smp --priority=80 --interval=500 --distance=0 --duration=60 --histogram=500 --histfile=/var/log/cclrte-rt-histogram.txt -q
+2. Parse output to get max latency
+3. PASS_THRESHOLD=100 (microseconds)
+4. If max > threshold: log FAIL, write to /var/log/cclrte-rt-result.txt, exit 1
+5. If pass: log PASS with actual max, write result, exit 0
+6. Result file format: JSON with timestamp, max_latency_us, avg_latency_us, pass, threshold
+
+---
+
+FILE 15: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/rt-verify/files/rt-verify.service
+
+[Unit]
+Description=CCLRTE RT Latency Verification
+After=rt-setup.service
+ConditionPathExists=!/var/log/cclrte-rt-result.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/run-cyclictest.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+---
+
+FILE 16: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/watchdog/watchdog_%.bbappend
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+SRC_URI:append = " file://watchdog.conf"
+do_install:append installs watchdog.conf to ${D}${sysconfdir}/watchdog.conf
+
+---
+
+FILE 17: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/watchdog/files/watchdog.conf
+
+Complete watchdog.conf:
+watchdog-device = /dev/watchdog
+# Timeout in seconds - must be less than hardware WDT timeout (default 15s on BCM2835)
+watchdog-timeout = 10
+# Ping interval
+interval = 2
+# What to test
+admin = root
+# Files that must be present (CODESYS socket)
+# file = /run/codesyscontrol.pid
+# Ping test to verify network
+# ping = 192.168.1.1
+# Max load average
+max-load-1 = 24
+max-load-5 = 18
+max-load-15 = 12
+# Min free memory pages
+min-memory = 1
+# Repair binary (try restart before reboot)
+repair-binary = /usr/sbin/cclrte-repair.sh
+# Log
+log-dir = /var/log
+
+Also create /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-realtime/watchdog/files/ and add a cclrte-repair.sh stub that tries to restart codesyscontrol.
+
+---
+
+FILE 18: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux-xenomai/linux-raspberrypi-xenomai_6.1.bb
+
+Xenomai kernel recipe.
+DESCRIPTION = "Linux kernel for RPi4 with Xenomai Cobalt hard-RT core (Dovetail)"
+LICENSE = "GPL-2.0-only"
+inherit kernel
+require recipes-kernel/linux/linux-raspberrypi.inc (if available, otherwise note it)
+
+LINUX_VERSION = "6.1"
+LINUX_KERNEL_TYPE = "standard"
+
+SRC_URI uses the RPi kernel source + Dovetail patch series + Xenomai Cobalt patches.
+Note in a comment: Dovetail patches for 6.1 are from https://source.denx.de/Xenomai/xenomai/-/wikis
+The actual patch files would need to be downloaded and placed in files/.
+
+For now, use a BBCLASSEXTEND note and set:
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+SRC_URI += "file://xenomai-cobalt.cfg file://xenomai-disable-features.cfg"
+
+COMPATIBLE_MACHINE = "rpi4-cclrte-xenomai"
+
+---
+
+FILE 19: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux-xenomai/files/xenomai-cobalt.cfg
+
+Kernel config for Xenomai Cobalt (Dovetail):
+CONFIG_XENOMAI=y
+CONFIG_DOVETAIL=y
+CONFIG_IRQ_PIPELINE=y
+CONFIG_COBALT=y
+CONFIG_XENO_DRIVERS_NET=y
+CONFIG_XENO_DRIVERS_ETH=y
+CONFIG_HZ_1000=y
+CONFIG_HZ=1000
+CONFIG_HIGH_RES_TIMERS=y
+CONFIG_PREEMPT=y  # Linux side: voluntary preemption (Cobalt handles RT)
+CONFIG_NO_HZ_FULL=y
+
+---
+
+FILE 20: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-kernel/linux-xenomai/files/xenomai-disable-features.cfg
+
+Disable features incompatible with Xenomai Dovetail:
+CONFIG_DEBUG_PREEMPT=n
+CONFIG_PREEMPT_RT=n  # Cobalt replaces this
+CONFIG_LOCKDEP=n
+CONFIG_PROVE_LOCKING=n
+CONFIG_DEBUG_SPINLOCK=n
+CONFIG_LATENCYTOP=n
+CONFIG_FTRACE=n
+
+Write all files completely using the Write tool. Make sure all bash scripts start with #!/bin/bash.

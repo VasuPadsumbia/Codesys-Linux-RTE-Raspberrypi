@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CCLRTE PLC{% endblock %} — CODESYS Control Linux RTE</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="nav-logo">&#9881;</span>
+      <span>CODESYS Control Linux RTE</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a></li>
+      <li><a href="/network" {% if request.path == '/network' %}class="active"{% endif %}>Network</a></li>
+      <li><a href="/protocols" {% if request.path == '/protocols' %}class="active"{% endif %}>Protocols</a></li>
+      <li><a href="/codesys" {% if request.path == '/codesys' %}class="active"{% endif %}>CODESYS</a></li>
+      <li><a href="/system" {% if request.path == '/system' %}class="active"{% endif %}>System</a></li>
+      <li><a href="/logout" class="nav-logout">Logout</a></li>
+    </ul>
+  </nav>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <span>CCLRTE v1.0 — Raspberry Pi 4 Industrial PLC</span>
+    <span id="clock"></span>
+  </footer>
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

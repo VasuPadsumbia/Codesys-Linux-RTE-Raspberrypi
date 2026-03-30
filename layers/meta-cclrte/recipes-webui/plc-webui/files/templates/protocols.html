@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Protocols{% endblock %}
+{% block content %}
+<div class="page-header"><h2>Industrial Protocols</h2></div>
+
+{% if msg %}
+<div class="alert alert-{{ msg[0] }}">{{ msg[1] }}</div>
+{% endif %}
+
+<div class="cards-grid">
+
+  <div class="card">
+    <div class="card-header">EtherCAT Master (IgH)</div>
+    <div class="card-body">
+      <div class="info-row"><span>Status</span>
+        <span class="badge {% if statuses.ethercat == 'active' %}badge-green{% else %}badge-red{% endif %}">
+          {{ statuses.ethercat }}
+        </span>
+      </div>
+      <p class="info-muted">Pinned to CPU2 (SCHED_FIFO 90). Dedicated NIC required (eth1).</p>
+      <form method="POST">
+        <input type="hidden" name="action" value="ethercat">
+        <div class="form-group">
+          <label>EtherCAT NIC MAC address</label>
+          <input type="text" name="master_device" value="{{ ethercat_mac }}" placeholder="aa:bb:cc:dd:ee:ff">
+          <small>Leave empty for auto-detect. Use <code>ip link show eth1</code> to find MAC.</small>
+        </div>
+        <div class="form-row">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="submit" name="action" value="service_toggle" form="ethercat-ctrl" class="btn btn-secondary">Restart</button>
+        </div>
+      </form>
+      <form id="ethercat-ctrl" method="POST">
+        <input type="hidden" name="action" value="service_toggle">
+        <input type="hidden" name="service" value="ethercat">
+        <input type="hidden" name="toggle" value="restart">
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">OPC UA Server</div>
+    <div class="card-body">
+      <div class="info-row"><span>Status</span><span class="badge badge-gray">{{ statuses.opcua }}</span></div>
+      <p class="info-muted">OPC UA server is embedded in CODESYS. Configure via CODESYS IDE &#8594; Device &#8594; OPC UA.</p>
+      <div class="info-row"><span>Endpoint</span><code>opc.tcp://&lt;eth0-ip&gt;:4840</code></div>
+      <div class="info-row"><span>Library</span><code>open62541 v1.3.10</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">MQTT Broker (Mosquitto)</div>
+    <div class="card-body">
+      <div class="info-row"><span>Status</span>
+        <span class="badge {% if statuses.mqtt == 'active' %}badge-green{% else %}badge-red{% endif %}">
+          {{ statuses.mqtt }}
+        </span>
+      </div>
+      <div class="info-row"><span>Broker</span><code>localhost:1883</code></div>
+      <div class="info-row"><span>WebSocket</span><code>ws://&lt;wlan-ip&gt;:9001</code></div>
+      <form method="POST">
+        <input type="hidden" name="action" value="service_toggle">
+        <input type="hidden" name="service" value="mosquitto">
+        <div class="form-row">
+          <button type="submit" name="toggle" value="start"   class="btn btn-secondary btn-sm">Start</button>
+          <button type="submit" name="toggle" value="stop"    class="btn btn-secondary btn-sm">Stop</button>
+          <button type="submit" name="toggle" value="restart" class="btn btn-secondary btn-sm">Restart</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">PROFINET (p-net device)</div>
+    <div class="card-body">
+      <div class="info-row"><span>Role</span><span class="badge badge-gray">Device (slave)</span></div>
+      <div class="info-row"><span>Interface</span><code>eth1</code></div>
+      <p class="info-muted">p-net implements PROFINET IO Device role. For IO Controller (master), use CODESYS PROFINET SL add-on from CODESYS Store.</p>
+      <div class="info-row"><span>Config</span><code>/etc/profinet/profinet.conf</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">IO-Link Master</div>
+    <div class="card-body">
+      <div class="info-row"><span>Transport</span><code>SPI0 (/dev/spidev0.0)</code></div>
+      <div class="info-row"><span>Ports</span><code>4 &#215; IO-Link ports (HAT)</code></div>
+      <p class="info-muted">IO-Link master runs over SPI via IO-Link HAT. Configure port modes in <code>/etc/iolink/iolink.conf</code>.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Modbus RTU / TCP</div>
+    <div class="card-body">
+      <div class="info-row"><span>RTU</span><code>/dev/ttyAMA0 (RS-485)</code></div>
+      <div class="info-row"><span>TCP</span><code>Port 502</code></div>
+      <p class="info-muted">Modbus is configured via CODESYS SysCom driver. UART0 is available after Bluetooth is disabled (dtoverlay=disable-bt in config.txt).</p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

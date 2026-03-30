@@ -1,0 +1,18 @@
+[Unit]
+Description=CCLRTE Real-time System Setup (PREEMPT_RT)
+Documentation=https://github.com/user/codesys-control-linux-rte/docs/ARCHITECTURE.md
+DefaultDependencies=no
+After=local-fs.target sysinit.target
+Before=codesyscontrol.service ethercat.service network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/cpufreq-setup.sh
+ExecStart=/usr/sbin/rt-setup.sh
+TimeoutStartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

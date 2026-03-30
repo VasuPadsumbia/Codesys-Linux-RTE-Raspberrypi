@@ -1,0 +1,50 @@
+# KAS configuration — Raspberry Pi 4 64-bit with PREEMPT_RT
+# Default build target for motion control with CODESYS Control Linux SL
+#
+# Build:  ./cclrte.sh build preempt-rt
+#         kas build kas/rpi4-64.yml
+header:
+  version: 14
+
+includes:
+  - base.yml
+
+machine: rpi4-cclrte
+target: cclrte-image
+
+repos:
+  meta-raspberrypi:
+    url: https://github.com/agherzan/meta-raspberrypi
+    refspec: scarthgap
+    layers:
+      .:
+
+  meta-realtime:
+    url: https://git.yoctoproject.org/meta-realtime
+    refspec: scarthgap
+    layers:
+      .:
+
+local_conf_header:
+  rpi4: |
+    # RPi4 hardware peripherals
+    ENABLE_UART    = "1"
+    GPU_MEM        = "16"
+    ENABLE_SPI_BUS = "1"
+    ENABLE_I2C     = "1"
+
+    # Accept Synaptics Wi-Fi firmware license (BCM43455)
+    LICENSE_FLAGS_ACCEPTED += "synaptics-killswitch"
+
+    # Boot directly via VideoCore firmware (no U-Boot)
+    RPI_USE_U_BOOT = "0"
+
+    MACHINE_FEATURES:append = " wifi bluetooth"
+
+    # Firmware-level RT tuning written to config.txt
+    # force_turbo=1        : lock CPU at 1800 MHz — eliminates DVFS latency spikes
+    # arm_freq_min=1800    : prevent any downclocking
+    # over_voltage=2       : required for stable 1800 MHz operation
+    # dtoverlay=disable-bt : free PL011 UART0 from Bluetooth for RS-485/Modbus use
+    # dtparam=watchdog=on  : enable BCM2711 hardware watchdog (15 s timeout)
+    RPI_EXTRA_CONFIG = "force_turbo=1\narm_freq=1800\narm_freq_min=1800\nover_voltage=2\ndisable_splash=1\ndtoverlay=disable-bt\ndtparam=watchdog=on\n"

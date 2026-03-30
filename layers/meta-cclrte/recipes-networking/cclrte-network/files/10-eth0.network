@@ -1,0 +1,16 @@
+# eth0 — CODESYS programming and runtime port (static IP)
+# Connect the CODESYS IDE to this address (port 1217)
+# Do NOT use this interface for management — it is reserved for CODESYS
+
+[Match]
+Name=eth0
+
+[Network]
+Address=192.168.1.100/24
+Gateway=192.168.1.1
+DNS=8.8.8.8
+Description=CODESYS Programming Port
+
+[Link]
+# Disable power management on CODESYS port — latency critical
+WakeOnLan=off

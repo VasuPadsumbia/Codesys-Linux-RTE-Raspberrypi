@@ -1,0 +1,32 @@
+# CCLRTE Real-time firmware configuration fragment
+# This is appended to /boot/config.txt
+# These same settings are applied via RPI_EXTRA_CONFIG in rpi4-cclrte.conf
+
+# Lock CPU to maximum frequency — eliminates DVFS-induced latency spikes
+force_turbo=1
+arm_freq=1800
+arm_freq_min=1800
+# Slight over-voltage required for stable 1800 MHz operation
+over_voltage=2
+
+# Minimal GPU memory — CODESYS does not use the GPU
+gpu_mem=16
+
+# Enable BCM2711 hardware watchdog (15 second timeout by default)
+dtparam=watchdog=on
+
+# Free PL011 UART0 from Bluetooth for RS-485/Modbus use
+dtoverlay=disable-bt
+
+# Enable UART0 for serial console and RS-485
+enable_uart=1
+
+# SPI0 for IO-Link master HAT or EtherCAT HAT
+dtparam=spi=on
+
+# I2C0 for RTC, sensors, and expansion boards
+dtparam=i2c_arm=on
+
+# Suppress boot splash
+disable_splash=1
+disable_overscan=1

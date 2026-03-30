@@ -1,0 +1,26 @@
+# CCLRTE Site Configuration
+# Copy this file to config/site.conf and fill in your settings.
+# This file is read by network-firstboot.sh on first boot.
+# Settings can also be changed later via the WebUI at http://<wlan0-ip>:8080
+
+# ── WiFi (wlan0 management interface) ─────────────────────────────────────────
+WIFI_SSID=""
+WIFI_PASSWORD=""
+WIFI_COUNTRY="DE"
+
+# ── SSH access ─────────────────────────────────────────────────────────────────
+# Paste your SSH public key here for passwordless login: ssh-keygen -t ed25519
+SSH_AUTHORIZED_KEY=""
+
+# ── eth0 — CODESYS programming port ───────────────────────────────────────────
+# Connect CODESYS IDE to this IP on port 1217
+ETH0_IP="192.168.1.100"
+ETH0_PREFIX="24"
+ETH0_GW="192.168.1.1"
+
+# ── wlan0 static IP (optional — leave empty for DHCP) ─────────────────────────
+WLAN_IP=""
+WLAN_PREFIX="24"
+
+# ── Device hostname ────────────────────────────────────────────────────────────
+DEVICE_HOSTNAME="cclrte-plc"

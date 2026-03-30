@@ -1,0 +1,17 @@
+# eth1 — Industrial fieldbus port (EtherCAT, PROFINET, Modbus TCP)
+# This interface is managed by the protocol stack (IgH EtherCAT or p-net),
+# NOT by systemd-networkd during normal operation.
+# networkd brings it up at link layer only — no IP assignment.
+
+[Match]
+Name=eth1
+
+[Network]
+# No IP — EtherCAT and PROFINET manage the link directly
+DHCP=no
+LinkLocalAddressing=no
+Description=Industrial Fieldbus Port (EtherCAT / PROFINET)
+
+[Link]
+WakeOnLan=off
+# Bring up at link layer for EtherCAT raw socket access

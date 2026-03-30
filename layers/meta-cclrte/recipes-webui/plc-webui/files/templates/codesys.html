@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}CODESYS{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>CODESYS Runtime</h2>
+  <span class="badge {% if cs_status == 'active' %}badge-green{% else %}badge-red{% endif %}">
+    {{ cs_status | upper }}
+  </span>
+</div>
+
+{% if msg %}
+<div class="alert alert-{{ msg[0] }}">{{ msg[1] }}</div>
+{% endif %}
+
+{% if not installed %}
+<div class="alert alert-warning">
+  <strong>CODESYS runtime not installed.</strong>
+  Transfer the package to this device and run:<br>
+  <code>/usr/sbin/install-codesys-runtime.sh /path/to/CODESYSControl_*.deb</code><br>
+  Obtain from: <a href="https://store.codesys.com" target="_blank">store.codesys.com</a>
+  &#8594; "CODESYS Control for Linux SL" (ARM64)
+</div>
+{% endif %}
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-header">Runtime Control</div>
+    <div class="card-body">
+      <div class="info-row"><span>Status</span>
+        <span id="cs-status" class="badge {% if cs_status == 'active' %}badge-green{% else %}badge-red{% endif %}">
+          {{ cs_status }}
+        </span>
+      </div>
+      <div class="info-row"><span>Programming Port</span><code>{{ eth0_ip }}:1217</code></div>
+      <div class="info-row"><span>CPU Affinity</span><code>CPU3 (isolated)</code></div>
+      <div class="info-row"><span>Scheduling</span><code>SCHED_FIFO priority 80</code></div>
+      <div class="form-row" style="margin-top:1rem">
+        {% for action in ['start', 'stop', 'restart'] %}
+        <form method="POST" style="display:inline">
+          <input type="hidden" name="action" value="{{ action }}">
+          <button type="submit" class="btn btn-secondary btn-sm">{{ action | capitalize }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">RT Latency Result</div>
+    <div class="card-body">
+      {% if rt_result %}
+      <div class="rt-result {% if rt_result.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
+        <div class="rt-status">{{ rt_result.status }}</div>
+        <div class="rt-metrics">
+          <div>Max latency: <strong>{{ rt_result.max_latency_us }} &#181;s</strong></div>
+          <div>Threshold:   {{ rt_result.threshold_us }} &#181;s</div>
+          <div>Interval:    {{ rt_result.interval_us }} &#181;s (cycle time target)</div>
+        </div>
+      </div>
+      {% if rt_result.status == 'FAIL' %}
+      <p class="info-muted">Max latency exceeds threshold. Consider switching to the Xenomai build target:<br>
+        <code>./cclrte.sh build xenomai</code>
+      </p>
+      {% endif %}
+      {% else %}
+      <p class="info-muted">No latency result yet. Run verification from System page.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-full">
+    <div class="card-header">
+      CODESYS Service Log (last 30 lines)
+      <button onclick="refreshLog()" class="btn btn-sm btn-secondary" style="float:right">Refresh</button>
+    </div>
+    <div class="card-body">
+      <pre id="cs-log" class="log-viewer">{{ cs_log }}</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function refreshLog() {
+  fetch('/api/codesys/log').then(r => r.json()).then(d => {
+    document.getElementById('cs-log').textContent = d.log;
+  });
+}
+setInterval(refreshLog, 10000);
+</script>
+{% endblock %}

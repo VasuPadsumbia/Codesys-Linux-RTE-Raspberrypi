@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}System{% endblock %}
+{% block content %}
+<div class="page-header"><h2>System</h2></div>
+
+{% if msg %}
+<div class="alert alert-{{ msg[0] }}">{{ msg[1] }}</div>
+{% endif %}
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-header">Hardware</div>
+    <div class="card-body">
+      <div class="info-row"><span>Platform</span><code>Raspberry Pi 4B 4GB</code></div>
+      <div class="info-row"><span>Kernel</span><code>{{ kernel }}</code></div>
+      <div class="info-row"><span>Uptime</span><code>{{ uptime }}</code></div>
+      <div class="info-row"><span>CPU Temp</span><strong id="temp">{{ temp }} &#176;C</strong></div>
+      <div class="info-row"><span>Memory</span><code>{{ memory }}</code></div>
+      <div class="info-row"><span>Disk</span><code>{{ disk }}</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">RT Verification</div>
+    <div class="card-body">
+      {% if rt_result %}
+      <div class="rt-result {% if rt_result.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
+        <strong>{{ rt_result.status }}</strong> &#8212; max {{ rt_result.max_latency_us }} &#181;s
+      </div>
+      {% else %}
+      <p class="info-muted">Not yet run.</p>
+      {% endif %}
+      <form method="POST" style="margin-top:0.75rem">
+        <input type="hidden" name="action" value="rt_verify">
+        <button type="submit" class="btn btn-secondary">Run cyclictest (60s)</button>
+      </form>
+      <p class="info-muted">Removes the result stamp and re-runs RT latency verification.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Security &#8212; Change Password</div>
+    <div class="card-body">
+      <form method="POST">
+        <input type="hidden" name="action" value="change_password">
+        <div class="form-group">
+          <label>Current Password</label>
+          <input type="password" name="old_password" required autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" name="new_password" required autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-primary">Update Password</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Actions</div>
+    <div class="card-body">
+      <form method="POST" onsubmit="return confirm('Reboot the PLC now?')">
+        <input type="hidden" name="action" value="reboot">
+        <button type="submit" class="btn btn-danger">Reboot PLC</button>
+      </form>
+      <p class="info-muted">CODESYS will restart automatically after reboot.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+setInterval(() => {
+  fetch('/api/status').then(r=>r.json()).then(d=>{
+    const t = document.getElementById('temp');
+    if(t && d.temp_c) t.textContent = d.temp_c + ' \u00b0C';
+  });
+}, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="login-container">
+  <div class="login-card">
+    <h1>CODESYS Control Linux RTE</h1>
+    <p class="login-subtitle">Industrial PLC Configuration</p>
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    <form method="POST">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="admin" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+    </form>
+    <p class="login-hint">Default credentials: admin / admin<br>Change password in System &#8594; Security</p>
+  </div>
+</div>
+{% endblock %}

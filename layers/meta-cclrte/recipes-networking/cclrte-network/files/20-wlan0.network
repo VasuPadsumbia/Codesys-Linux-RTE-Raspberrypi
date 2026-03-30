@@ -1,0 +1,16 @@
+# wlan0 — Management interface: SSH, WebUI, MQTT, OPC-UA
+# Credentials configured in config/site.conf.sample before build,
+# or reconfigured via WebUI at http://<wlan0-ip>:8080/network
+
+[Match]
+Name=wlan0
+
+[Network]
+# DHCP by default — override by setting WLAN_IP in config/site.conf.sample
+DHCP=yes
+Description=Management / WebUI / SSH
+
+[DHCP]
+RouteMetric=20
+UseDNS=yes
+UseNTP=yes

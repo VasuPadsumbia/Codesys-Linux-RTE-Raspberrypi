@@ -1,0 +1,163 @@
+Implement the following files for a Yocto-based CODESYS Control Linux RTE project for Raspberry Pi 4. Write COMPLETE file contents (no placeholders, no TODOs).
+
+Project: codesys-control-linux-rte, internal name cclrte
+Layer: meta-cclrte
+Yocto release: scarthgap
+Target machine: rpi4-cclrte (PREEMPT_RT) and rpi4-cclrte-xenomai (Xenomai Cobalt)
+Purpose: Run CODESYS Control for Linux SL in hard real-time for motion control
+
+All Python tooling runs in a venv. requirements.txt exists at repo root.
+
+---
+
+FILE 1: /home/vasu-hdd/yocto-gateway-rt/kas/base.yml
+
+KAS version 14. Repos: poky (scarthgap), meta-openembedded (scarthgap, layers: meta-oe meta-networking meta-python meta-filesystems), local layer meta-cclrte (path: layers/meta-cclrte). local_conf_header: DISTRO=cclrte, systemd init (DISTRO_FEATURES append systemd, VIRTUAL-RUNTIME_init_manager=systemd, DISTRO_FEATURES_BACKFILL_CONSIDERED append sysvinit, VIRTUAL-RUNTIME_initscripts=systemd-compat-units), EXTRA_IMAGE_FEATURES ssh-server-openssh, PACKAGE_CLASSES=package_ipk, BB_NUMBER_THREADS and PARALLEL_MAKE using oe.utils.cpu_count(), DL_DIR and SSTATE_DIR one level above TOPDIR.
+
+---
+
+FILE 2: /home/vasu-hdd/yocto-gateway-rt/kas/rpi4-64.yml
+
+KAS version 14. includes: base.yml. machine: rpi4-cclrte. target: cclrte-image. Additional repos: meta-raspberrypi (scarthgap), meta-realtime (git.yoctoproject.org/meta-realtime, scarthgap). local_conf_header: ENABLE_UART=1, GPU_MEM=16, ENABLE_SPI_BUS=1, ENABLE_I2C=1, LICENSE_FLAGS_ACCEPTED=synaptics-killswitch, RPI_USE_U_BOOT=0, MACHINE_FEATURES append wifi bluetooth, force_turbo via RPI_EXTRA_CONFIG.
+
+---
+
+FILE 3: /home/vasu-hdd/yocto-gateway-rt/kas/rpi4-xenomai.yml
+
+KAS version 14. includes: base.yml. machine: rpi4-cclrte-xenomai. target: cclrte-xenomai-image. Same repos as rpi4-64.yml plus meta-xenomai from github.com/siemens/meta-iot2050 is NOT right - use the official meta-xenomai: url https://gitlab.denx.de/Xenomai/xenomai.git is for xenomai itself; for the yocto layer use a note that meta-xenomai must be obtained separately. local_conf_header: PREFERRED_PROVIDER_virtual/kernel=linux-raspberrypi-xenomai, same RPi settings as rpi4-64.yml.
+
+---
+
+FILE 4: /home/vasu-hdd/yocto-gateway-rt/kas/qemu-x86-64.yml
+
+KAS version 14. includes: base.yml. machine: qemux86-64. target: cclrte-image-qemu. local_conf_header: QB_SYSTEM_NAME=qemu-system-x86_64, add kernel options for KVM if available.
+
+---
+
+FILE 5: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/conf/layer.conf
+
+Standard Yocto layer.conf. BBPATH, BBFILES for recipes-*/*/*.bb and *.bbappend. BBFILE_COLLECTIONS=meta-cclrte. BBFILE_PATTERN. BBFILE_PRIORITY=10. LAYERDEPENDS: core openembedded-layer networking-layer python3-layer. LAYERSERIES_COMPAT: scarthgap.
+
+---
+
+FILE 6: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/conf/distro/cclrte.conf
+
+Custom distro config. require conf/distro/poky.conf. DISTRO=cclrte. DISTRO_NAME="CODESYS Control Linux RTE". DISTRO_VERSION=1.0. DISTRO_FEATURES: inherit poky features, append systemd wifi bluetooth ext2 pci usb. Remove sysvinit via DISTRO_FEATURES_BACKFILL_CONSIDERED. VIRTUAL-RUNTIME_init_manager=systemd. DISTRO_FEATURES_BACKFILL_CONSIDERED append sysvinit. INIT_MANAGER=systemd. TC_CXX_RUNTIME=gnu. SDKIMAGE_FEATURES. Add IMAGE_LINGUAS = "en-us". DISTRO_EXTRA_RDEPENDS for rt-setup. Note: full preemption via DISTRO_FEATURES append preempt-rt.
+
+---
+
+FILE 7: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/conf/machine/rpi4-cclrte.conf
+
+Machine config for RPi4 with PREEMPT_RT for motion control.
+require conf/machine/raspberrypi4-64.conf
+PREFERRED_PROVIDER_virtual/kernel = "linux-raspberrypi"
+LINUX_VERSION_EXTENSION = "-cclrte-rt"
+MACHINE_EXTRA_RRECOMMENDS += " kernel-modules"
+MACHINE_FEATURES:append = " rtc"
+
+Kernel cmdline for motion control RT:
+CMDLINE:append = " isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3 threadirqs preempt=full nosoftlockup"
+
+RPI config: GPU_MEM=16, ENABLE_UART=1, ENABLE_SPI_BUS=1, ENABLE_I2C=1, force_turbo=1 via RPI_EXTRA_CONFIG (also arm_freq=1800, arm_freq_min=1800, over_voltage=2, disable_splash=1, dtoverlay=disable-bt to free UART for RS485, enable watchdog via dtparam=watchdog=on)
+
+IMAGE_FSTYPES = "rpi-sdimg wic.bz2"
+
+---
+
+FILE 8: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/conf/machine/rpi4-cclrte-xenomai.conf
+
+require conf/machine/rpi4-cclrte.conf (inherits all RPi4 settings)
+PREFERRED_PROVIDER_virtual/kernel = "linux-raspberrypi-xenomai"
+LINUX_VERSION_EXTENSION = "-cclrte-xenomai"
+
+Different cmdline - Xenomai Cobalt owns CPUs 2,3:
+CMDLINE:remove = "isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3"
+CMDLINE:append = " xenomai.supported_cpus=0xC xenomai.smi=disabled isolcpus=2,3 nohz_full=2,3"
+
+IMAGE_FSTYPES = "rpi-sdimg wic.bz2"
+
+---
+
+FILE 9: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-core/images/cclrte-image.bb
+
+DESCRIPTION = "CODESYS Control Linux RTE - Full RPi4 image with PREEMPT_RT"
+LICENSE = "MIT"
+inherit core-image
+
+IMAGE_FEATURES += "ssh-server-openssh package-management"
+
+IMAGE_INSTALL:append = " \
+    kernel-modules \
+    linux-firmware \
+    rpi-config \
+    rt-setup \
+    rt-verify \
+    watchdog \
+    codesys-control \
+    igh-ethercat \
+    open62541 \
+    mosquitto \
+    iolink-master \
+    profinet-rt \
+    cclrte-network \
+    plc-webui \
+    python3 \
+    python3-flask \
+    python3-werkzeug \
+    python3-jinja2 \
+    extended-io-config \
+    rt-tests \
+    i2c-tools \
+    can-utils \
+    ethtool \
+    iproute2 \
+    tcpdump \
+    htop \
+    nano \
+    usbutils \
+    stress-ng \
+    openssh-sftp-server \
+"
+
+IMAGE_ROOTFS_SIZE = "524288"
+IMAGE_OVERHEAD_FACTOR = "1.3"
+
+---
+
+FILE 10: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-core/images/cclrte-image-qemu.bb
+
+DESCRIPTION = "CODESYS Control Linux RTE - Minimal QEMU image for CI testing"
+LICENSE = "MIT"
+inherit core-image
+
+IMAGE_FEATURES += "ssh-server-openssh"
+
+IMAGE_INSTALL:append = " \
+    kernel-modules \
+    rt-setup \
+    rt-verify \
+    cclrte-network \
+    plc-webui \
+    python3 \
+    python3-flask \
+    python3-werkzeug \
+    python3-jinja2 \
+    rt-tests \
+    stress-ng \
+    openssh-sftp-server \
+"
+
+---
+
+FILE 11: /home/vasu-hdd/yocto-gateway-rt/layers/meta-cclrte/recipes-core/images/cclrte-xenomai-image.bb
+
+DESCRIPTION = "CODESYS Control Linux RTE - Xenomai Cobalt hard RT image"
+LICENSE = "MIT"
+require cclrte-image.bb
+
+IMAGE_INSTALL:append = " \
+    xenomai-libcobalt \
+    xenomai-utils \
+"
+
+Write all files completely. Use Write tool for each file.

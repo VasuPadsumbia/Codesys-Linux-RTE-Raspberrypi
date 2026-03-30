@@ -1,0 +1,21 @@
+[Unit]
+Description=IgH EtherCAT Master
+Documentation=https://gitlab.com/etherlab.org/ethercat
+After=network.target rt-setup.service
+Before=codesyscontrol.service
+
+[Service]
+Type=forking
+ExecStart=/etc/init.d/ethercat start
+ExecStop=/etc/init.d/ethercat stop
+RemainAfterExit=yes
+# EtherCAT master thread is pinned to CPU2 with SCHED_FIFO 90 by rt-setup.sh
+# These defaults apply before rt-setup.sh runs
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=89
+CPUAffinity=2
+Restart=on-failure
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

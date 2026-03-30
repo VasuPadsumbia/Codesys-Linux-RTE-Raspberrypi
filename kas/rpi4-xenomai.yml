@@ -1,0 +1,52 @@
+# KAS configuration — Raspberry Pi 4 64-bit with Xenomai Cobalt hard-RT
+# Use when PREEMPT_RT worst-case latency > 100 µs or cycle time < 500 µs needed.
+#
+# Build:  ./cclrte.sh build xenomai
+#         kas build kas/rpi4-xenomai.yml
+#
+# PREREQUISITE: meta-xenomai Yocto layer must be placed at layers/meta-xenomai
+# before running this configuration. The Dovetail-patched kernel recipe
+# (linux-raspberrypi-xenomai) lives in that layer.
+# Recommended community layer: https://github.com/rpuntaie/meta-xenomai
+# Verify branch compatibility with Xenomai 3.2+ / kernel 6.1 Dovetail.
+header:
+  version: 14
+
+includes:
+  - base.yml
+
+machine: rpi4-cclrte-xenomai
+target: cclrte-xenomai-image
+
+repos:
+  meta-raspberrypi:
+    url: https://github.com/agherzan/meta-raspberrypi
+    refspec: scarthgap
+    layers:
+      .:
+
+  meta-realtime:
+    url: https://git.yoctoproject.org/meta-realtime
+    refspec: scarthgap
+    layers:
+      .:
+
+  meta-xenomai:
+    path: layers/meta-xenomai
+    layers:
+      .:
+
+local_conf_header:
+  rpi4-xenomai: |
+    PREFERRED_PROVIDER_virtual/kernel = "linux-raspberrypi-xenomai"
+
+    ENABLE_UART    = "1"
+    GPU_MEM        = "16"
+    ENABLE_SPI_BUS = "1"
+    ENABLE_I2C     = "1"
+
+    LICENSE_FLAGS_ACCEPTED += "synaptics-killswitch"
+    RPI_USE_U_BOOT = "0"
+    MACHINE_FEATURES:append = " wifi bluetooth"
+
+    RPI_EXTRA_CONFIG = "force_turbo=1\narm_freq=1800\narm_freq_min=1800\nover_voltage=2\ndisable_splash=1\ndtoverlay=disable-bt\ndtparam=watchdog=on\n"

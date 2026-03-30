@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Dashboard</h2>
+  <span class="badge {% if status.codesys == 'active' %}badge-green{% else %}badge-red{% endif %}">
+    PLC {{ status.codesys | upper }}
+  </span>
+</div>
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-header">Services</div>
+    <div class="card-body">
+      {% for name, state in status.items() %}
+      <div class="service-row">
+        <span class="service-name">{{ name }}</span>
+        <span class="badge {% if state == 'active' %}badge-green{% elif state == 'inactive' %}badge-yellow{% else %}badge-gray{% endif %}">
+          {{ state }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Network</div>
+    <div class="card-body">
+      <div class="info-row"><span>eth0 (CODESYS)</span><code>{{ eth0_ip }}</code></div>
+      <div class="info-row"><span>wlan0 (Management)</span><code>{{ wlan_ip }}</code></div>
+      <div class="info-row"><span>CODESYS IDE Port</span><code>{{ eth0_ip }}:1217</code></div>
+      <div class="info-row"><span>WebUI</span><code>{{ wlan_ip }}:8080</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Real-time Status</div>
+    <div class="card-body">
+      {% if rt %}
+      <div class="rt-result {% if rt.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
+        <div class="rt-status">{{ rt.status }}</div>
+        <div class="rt-metrics">
+          <span>Max: <strong>{{ rt.max_latency_us }} &#181;s</strong></span>
+          <span>Threshold: {{ rt.threshold_us }} &#181;s</span>
+        </div>
+        <div class="rt-time">Verified: {{ rt.timestamp[:10] }}</div>
+      </div>
+      {% else %}
+      <div class="info-muted">RT latency not yet verified.<br>
+        <a href="/system">Run verification &#8594;</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Hardware</div>
+    <div class="card-body">
+      <div class="info-row"><span>CPU Temp</span><strong>{{ temp }} &#176;C</strong></div>
+      <div class="info-row"><span>Uptime</span><code>{{ uptime }}</code></div>
+      <div class="info-row"><span>Platform</span><code>Raspberry Pi 4B</code></div>
+      <div class="info-row"><span>RT Mode</span><code>PREEMPT_RT</code></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Auto-refresh status every 5 seconds
+  setInterval(() => {
+    fetch('/api/status').then(r => r.json()).then(data => {
+      document.querySelectorAll('[data-service]').forEach(el => {
+        const svc = el.dataset.service;
+        if (data[svc]) el.textContent = data[svc];
+      });
+    }).catch(() => {});
+  }, 5000);
+</script>
+{% endblock %}

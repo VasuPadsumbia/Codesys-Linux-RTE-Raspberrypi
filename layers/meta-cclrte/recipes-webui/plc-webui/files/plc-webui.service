@@ -1,0 +1,23 @@
+[Unit]
+Description=CCLRTE PLC WebUI Configuration Interface
+Documentation=https://github.com/user/codesys-control-linux-rte/docs/USER_GUIDE.md
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cclrte/webui
+Environment=WEBUI_SECRET_FILE=/var/lib/cclrte/webui.secret
+ExecStartPre=/bin/sh -c 'mkdir -p /var/lib/cclrte'
+ExecStart=/opt/cclrte/venv/bin/python3 /opt/cclrte/webui/app.py
+Restart=on-failure
+RestartSec=5s
+# WebUI runs on CPU0,1 — never competes with RT tasks
+CPUAffinity=0 1
+# Low RT priority — yields to CODESYS and EtherCAT always
+Nice=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

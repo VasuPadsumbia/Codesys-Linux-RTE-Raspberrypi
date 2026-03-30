@@ -1,0 +1,18 @@
+[Unit]
+Description=CCLRTE Real-time System Setup (Xenomai Cobalt)
+Documentation=https://github.com/user/codesys-control-linux-rte/docs/ARCHITECTURE.md
+DefaultDependencies=no
+After=local-fs.target sysinit.target
+Before=codesyscontrol.service ethercat.service
+# Only run on Xenomai builds (Cobalt module must be loaded)
+ConditionPathExists=/proc/xenomai
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/cpufreq-setup.sh
+ExecStart=/usr/sbin/xenomai-setup.sh
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
