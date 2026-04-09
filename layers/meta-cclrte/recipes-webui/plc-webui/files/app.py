@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
 CCLRTE PLC WebUI — Flask-based configuration interface
+Author: Vasu Padsumbia
 Runs on port 8080 via wlan0 (management interface).
 Provides: Dashboard, Network config, Protocol config, CODESYS management, System info.
 """
 
 import os
 import json
+import time
 import subprocess
 import configparser
 from datetime import datetime
@@ -49,6 +51,22 @@ def read_rt_result():
     except Exception:
         return None
 
+def hw_platform():
+    """Read hardware platform string from device tree."""
+    try:
+        with open('/proc/device-tree/model', 'r') as f:
+            return f.read().rstrip('\x00').strip()
+    except Exception:
+        pass
+    try:
+        with open('/proc/cpuinfo') as f:
+            for line in f:
+                if line.startswith('Model'):
+                    return line.split(':', 1)[1].strip()
+    except Exception:
+        pass
+    return 'Unknown'
+
 def cpu_temp():
     try:
         with open('/sys/class/thermal/thermal_zone0/temp') as f:
@@ -59,6 +77,76 @@ def cpu_temp():
 def uptime():
     out, _ = run("awk '{printf \"%d days %02d:%02d\", $1/86400, ($1%86400)/3600, ($1%3600)/60}' /proc/uptime")
     return out
+
+def cpu_loads():
+    """Return per-CPU usage % by sampling /proc/stat over 200 ms."""
+    def read_stat():
+        cpus = {}
+        with open('/proc/stat') as f:
+            for line in f:
+                if not line.startswith('cpu'):
+                    break
+                parts = line.split()
+                name = parts[0]
+                vals = list(map(int, parts[1:]))
+                idle = vals[3] + vals[4]          # idle + iowait
+                total = sum(vals)
+                cpus[name] = (idle, total)
+        return cpus
+    try:
+        s1 = read_stat()
+        time.sleep(0.2)
+        s2 = read_stat()
+        result = {}
+        for k in s1:
+            di = s2[k][0] - s1[k][0]
+            dt = s2[k][1] - s1[k][1]
+            result[k] = round(100 * (1 - di / dt), 1) if dt else 0.0
+        return result
+    except Exception:
+        return {}
+
+def mem_info():
+    """Return memory usage as dict with total_mb, used_mb, free_mb, percent."""
+    try:
+        info = {}
+        with open('/proc/meminfo') as f:
+            for line in f:
+                k, v = line.split(':', 1)
+                info[k.strip()] = int(v.split()[0])
+        total = info.get('MemTotal', 0)
+        available = info.get('MemAvailable', 0)
+        used = total - available
+        return {
+            'total_mb': total // 1024,
+            'used_mb':  used // 1024,
+            'free_mb':  available // 1024,
+            'percent':  round(100 * used / total, 1) if total else 0,
+        }
+    except Exception:
+        return {}
+
+def net_stats(iface):
+    """Return rx_bytes and tx_bytes for an interface."""
+    try:
+        base = f'/sys/class/net/{iface}/statistics'
+        rx = int(open(f'{base}/rx_bytes').read())
+        tx = int(open(f'{base}/tx_bytes').read())
+        return {'rx_bytes': rx, 'tx_bytes': tx}
+    except Exception:
+        return {'rx_bytes': 0, 'tx_bytes': 0}
+
+def codesys_cpu():
+    """Return CODESYS process CPU % from /proc/<pid>/stat."""
+    try:
+        out, rc = run("pgrep -x codesyscontrol || pgrep -x codesysruntime")
+        if rc != 0 or not out:
+            return None
+        pid = out.split()[0]
+        stat_out, _ = run(f"ps -p {pid} -o %cpu --no-headers")
+        return float(stat_out.strip()) if stat_out.strip() else None
+    except Exception:
+        return None
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -77,10 +165,13 @@ def index():
     wlan_ip  = get_ip('wlan0')
     temp     = cpu_temp()
     up       = uptime()
+    kernel, _ = run('uname -r')
+    rt_mode  = 'XENOMAI' if 'xenomai' in kernel.lower() else 'PREEMPT_RT'
     return render_template('index.html',
         status=status, rt=rt,
         eth0_ip=eth0_ip, wlan_ip=wlan_ip,
-        temp=temp, uptime=up)
+        temp=temp, uptime=up,
+        platform=hw_platform(), rt_mode=rt_mode)
 
 @app.route('/network', methods=['GET', 'POST'])
 @login_required
@@ -103,11 +194,11 @@ def network():
         elif action == 'wifi':
             ssid     = request.form.get('ssid', '').strip()
             password = request.form.get('password', '').strip()
-            country  = request.form.get('country', 'DE').strip()
+            country  = request.form.get('country', 'IN').strip()
             if ssid and password:
                 wpa_out, rc = run(f'wpa_passphrase "{ssid}" "{password}"')
                 if rc == 0:
-                    content = f"ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\ncountry={country}\n\n{wpa_out}\n"
+                    content = f"ctrl_interface=DIR=/var/run/wpa_supplicant\nupdate_config=1\ncountry={country}\ndisable_scan_offload=1\n\n{wpa_out}\n"
                     try:
                         with open(WPA_CONF, 'w') as f:
                             f.write(content)
@@ -223,8 +314,10 @@ def system():
             else:
                 msg = ('error', 'Current password incorrect')
         elif action == 'rt_verify':
-            run('systemctl start rt-verify')
-            msg = ('success', 'RT latency verification started — check back in ~60 seconds')
+            # Delete old result so the service always runs fresh (no ConditionPathExists)
+            run(f'rm -f {RT_RESULT}')
+            run('systemctl restart rt-verify')
+            msg = ('success', 'RT verification started — 3 phases (CPU2/EtherCAT, CPU3/CODESYS, SMP). Check back in ~3 minutes')
 
     mem_out, _ = run("free -m | awk 'NR==2{printf \"%s/%s MB\", $3, $2}'")
     disk_out, _ = run("df -h / | awk 'NR==2{printf \"%s/%s (%s)\", $3, $2, $5}'")
@@ -234,7 +327,7 @@ def system():
     return render_template('system.html',
         msg=msg, temp=cpu_temp(), uptime=uptime(),
         memory=mem_out, disk=disk_out, kernel=kernel_out,
-        rt_result=rt_result)
+        rt_result=rt_result, platform=hw_platform())
 
 # ── Auth routes ────────────────────────────────────────────────────────────────
 
@@ -268,6 +361,29 @@ def api_status():
         'temp_c':   cpu_temp(),
         'uptime':   uptime(),
         'rt':       read_rt_result(),
+        'timestamp': datetime.now().isoformat(),
+    })
+
+@app.route('/api/load')
+@login_required
+def api_load():
+    loads = cpu_loads()
+    mem   = mem_info()
+    return jsonify({
+        'cpu': {
+            'total':  loads.get('cpu', 0),
+            'core0':  loads.get('cpu0', 0),
+            'core1':  loads.get('cpu1', 0),
+            'core2':  loads.get('cpu2', 0),   # EtherCAT
+            'core3':  loads.get('cpu3', 0),   # CODESYS
+        },
+        'memory': mem,
+        'codesys_cpu_pct': codesys_cpu(),
+        'net': {
+            'eth0':  net_stats('eth0'),
+            'wlan0': net_stats('wlan0'),
+        },
+        'temp_c':  cpu_temp(),
         'timestamp': datetime.now().isoformat(),
     })
 

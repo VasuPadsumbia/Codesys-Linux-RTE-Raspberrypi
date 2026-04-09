@@ -1,32 +1,42 @@
-# CCLRTE Real-time firmware configuration fragment
-# This is appended to /boot/config.txt
-# These same settings are applied via RPI_EXTRA_CONFIG in rpi4-cclrte.conf
+# CCLRTE Real-time firmware configuration — RPi5 / BCM2712 headless PLC
+# Applied on top of standard meta-raspberrypi config.txt
+# All settings here are BCM2712-specific — do NOT use RPi4/BCM2711 params
+# (arm_freq=, arm_freq_min=, over_voltage= are RPi4 only and have no effect on RPi5)
 
-# Lock CPU to maximum frequency — eliminates DVFS-induced latency spikes
+# ── CPU frequency ─────────────────────────────────────────────────────────────
+# Lock CPU at 2.4 GHz (RPi5 base boost) — eliminates DVFS latency spikes.
+# arm_boost=1 (3.0 GHz) is intentionally omitted: 2.4 GHz is adequate for all
+# CODESYS PLC scan cycles and reduces junction temperature by ~10–15 °C.
 force_turbo=1
-arm_freq=1800
-arm_freq_min=1800
-# Slight over-voltage required for stable 1800 MHz operation
-over_voltage=2
 
-# Minimal GPU memory — CODESYS does not use the GPU
+# ── Thermal safety ────────────────────────────────────────────────────────────
+# Soft-throttle at 80 °C before the firmware hard-limit at 85 °C.
+temp_limit=80
+
+# ── GPU / Display: fully disabled ─────────────────────────────────────────────
+# Headless PLC — no display output needed.
+# gpu_mem=16 is the minimum; VideoCore firmware still runs but at idle.
 gpu_mem=16
+# Turn off HDMI output when no display is connected (saves ~100 mW per port)
+hdmi_blanking=2
+# Disable display and camera auto-detection (saves boot time + RP1 polling)
+display_auto_detect=0
+camera_auto_detect=0
+# Disable audio: no speaker/headphone output on a PLC
+dtparam=audio=off
 
-# Enable BCM2711 hardware watchdog (15 second timeout by default)
+# ── Hardware watchdog ─────────────────────────────────────────────────────────
 dtparam=watchdog=on
 
-# Free PL011 UART0 from Bluetooth for RS-485/Modbus use
+# ── UART0 — RS-485 / Modbus RTU ───────────────────────────────────────────────
+# disable-bt frees the PL011 UART from Bluetooth, restoring it as ttyAMA0
 dtoverlay=disable-bt
-
-# Enable UART0 for serial console and RS-485
 enable_uart=1
 
-# SPI0 for IO-Link master HAT or EtherCAT HAT
+# ── Industrial fieldbus peripheral buses ──────────────────────────────────────
 dtparam=spi=on
-
-# I2C0 for RTC, sensors, and expansion boards
 dtparam=i2c_arm=on
 
-# Suppress boot splash
+# ── Boot ──────────────────────────────────────────────────────────────────────
 disable_splash=1
 disable_overscan=1

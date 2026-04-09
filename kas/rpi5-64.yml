@@ -1,0 +1,61 @@
+# KAS configuration — Raspberry Pi 5 64-bit with PREEMPT_RT
+# Target: RPi5 2GB (BCM2712 / Cortex-A76)
+#
+# Build:  ./cclrte.sh build preempt-rt-rpi5
+#         kas build kas/rpi5-64.yml
+header:
+  version: 14
+  includes:
+    - kas/base.yml
+
+machine: rpi5-cclrte
+target: cclrte-image
+
+repos:
+  meta-raspberrypi:
+    url: git@github.com:agherzan/meta-raspberrypi
+    branch: scarthgap
+    layers:
+      .:
+
+  meta-realtime:
+    url: https://git.yoctoproject.org/meta-realtime
+    branch: scarthgap
+    layers:
+      .:
+
+local_conf_header:
+  rpi5: |
+    # RPi5 hardware peripherals
+    ENABLE_UART    = "1"
+    GPU_MEM        = "16"
+    ENABLE_SPI_BUS = "1"
+    ENABLE_I2C     = "1"
+
+    # Accept Synaptics Wi-Fi firmware license (CYW43455 on RPi5)
+    LICENSE_FLAGS_ACCEPTED += "synaptics-killswitch"
+
+    # Disable VC4 KMS DRM driver — no display needed for a headless PLC.
+    # Prevents meta-raspberrypi from appending dtoverlay=vc4-kms-v3d to config.txt,
+    # which would keep the GPU clock trees and HDMI PLLs active.
+    DISABLE_VC4GRAPHICS = "1"
+
+    # Boot directly via VideoCore / RP1 firmware (no U-Boot)
+    RPI_USE_U_BOOT = "0"
+
+    # wifi only — bluetooth not needed for a headless PLC.
+    # Removing bluetooth eliminates bluetoothd + ofono from the image.
+    MACHINE_FEATURES:append = " wifi"
+
+    # RPi5 has a built-in RTC (PCF85063A) — enable it
+    MACHINE_FEATURES:append = " rtc"
+
+    # Firmware-level RT tuning written to config.txt
+    # arm_boost=1          : boost to 3.0 GHz (stable on RPi5 without extra voltage)
+    # force_turbo=1        : lock CPU at max freq — eliminates DVFS latency spikes
+    # disable_splash=1     : faster boot
+    # dtoverlay=disable-bt : free primary UART for RS-485/Modbus
+    # dtparam=watchdog=on  : enable BCM2712 hardware watchdog
+    # arm_boost=1 (3.0 GHz) intentionally removed — 2.4 GHz base is adequate for
+    # all PLC scan cycles and reduces junction temperature by ~10–15 °C.
+    RPI_EXTRA_CONFIG = "force_turbo=1\ntemp_limit=80\ngpu_mem=16\nhdmi_blanking=2\ndisplay_auto_detect=0\ncamera_auto_detect=0\ndtparam=audio=off\ndisable_splash=1\ndtoverlay=disable-bt\ndtparam=watchdog=on\n"

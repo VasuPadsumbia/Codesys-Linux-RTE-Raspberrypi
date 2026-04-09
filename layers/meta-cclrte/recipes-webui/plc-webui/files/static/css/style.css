@@ -112,3 +112,12 @@ code, pre { font-family: var(--mono); font-size: 13px; background: rgba(255,255,
   .nav-links { display: none; }
   .navbar { padding: 0 1rem; }
 }
+
+/* PLC Load bars */
+.load-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.load-role  { color: var(--primary); font-size: 10px; }
+.load-bar-wrap { background: #0a0c10; border-radius: 3px; height: 8px; overflow: hidden; margin-bottom: 3px; }
+.load-bar { height: 8px; width: 0; background: var(--success); border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
+.load-bar-rt   { background: var(--primary); }
+.load-bar-temp { background: var(--warning); }
+.load-val { font-size: 11px; font-family: var(--mono); color: var(--text); }

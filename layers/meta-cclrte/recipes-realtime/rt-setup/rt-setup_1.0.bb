@@ -17,7 +17,10 @@ SRC_URI = " \
     file://xenomai-setup.service \
 "
 
-SYSTEMD_SERVICE:${PN} = "rt-setup.service"
+# Both services are installed on all builds.
+# xenomai-setup.service has ConditionPathExists=/proc/xenomai so it is a no-op
+# on PREEMPT_RT images even if accidentally enabled.
+SYSTEMD_SERVICE:${PN} = "rt-setup.service xenomai-setup.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 do_install() {
@@ -37,13 +40,13 @@ do_install() {
     install -d ${D}${sysconfdir}/systemd/system.conf.d
     install -m 0644 ${WORKDIR}/cpu-motion.conf \
         ${D}${sysconfdir}/systemd/system.conf.d/99-cclrte-motion.conf
-
-    install -d ${D}${localstatedir}/log
+    # /var/log already exists on target — do not pre-create to avoid empty-dirs QA error
 }
 
 FILES:${PN} += " \
     ${sysconfdir}/sysctl.d/99-cclrte-rt.conf \
     ${sysconfdir}/systemd/system.conf.d/99-cclrte-motion.conf \
+    ${systemd_system_unitdir}/xenomai-setup.service \
 "
 
 RDEPENDS:${PN} = "bash"

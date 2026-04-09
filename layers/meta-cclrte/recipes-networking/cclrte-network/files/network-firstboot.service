@@ -1,0 +1,18 @@
+[Unit]
+Description=CCLRTE Network First-Boot Setup
+Documentation=https://github.com/user/codesys-control-linux-rte/docs/INSTALLATION.md
+DefaultDependencies=no
+After=local-fs.target systemd-remount-fs.service systemd-tmpfiles-setup.service
+Before=network.target systemd-networkd.service wpa_supplicant@wlan0.service
+ConditionPathExists=!/var/lib/cclrte/network-configured
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/network-firstboot.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target

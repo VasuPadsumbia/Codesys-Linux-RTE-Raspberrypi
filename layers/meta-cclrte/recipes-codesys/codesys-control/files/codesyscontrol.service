@@ -1,9 +1,11 @@
 [Unit]
 Description=CODESYS Control for Linux SL Runtime
-Documentation=https://store.codesys.com https://github.com/user/codesys-control-linux-rte/docs/USER_GUIDE.md
-After=network.target rt-setup.service ethercat.service
-Wants=ethercat.service
+Documentation=https://store.codesys.com
+After=network.target rt-setup.service ethercat.service codesysgateway.service
+Wants=ethercat.service codesysgateway.service
 Requires=rt-setup.service
+# Do not start if binary is not yet installed by CODESYS IDE
+ConditionPathExists=/opt/codesys/bin/codesyscontrol
 
 [Service]
 Type=forking
@@ -18,18 +20,15 @@ ExecStop=/opt/codesys/bin/codesyscontrol -k
 Restart=on-failure
 RestartSec=5s
 
-# Real-time scheduling (reinforces CODESYSControl.cfg settings)
+# Real-time scheduling — CPU3, SCHED_FIFO 80
+# Reinforced by drop-in: /etc/systemd/system/codesyscontrol.service.d/rt-override.conf
 CPUSchedulingPolicy=fifo
 CPUSchedulingPriority=80
-# CPU3 — isolated RT core for CODESYS scan cycle
 CPUAffinity=3
-
-# Memory lock — no swap, no page faults during scan cycle
 LimitMEMLOCK=infinity
 LimitNOFILE=65536
 LimitSTACK=8388608
 
-# Hardware watchdog notification
 WatchdogSec=10s
 NotifyAccess=main
 

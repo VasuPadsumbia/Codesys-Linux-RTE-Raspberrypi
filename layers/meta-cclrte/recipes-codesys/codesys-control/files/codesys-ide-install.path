@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch for CODESYS runtime installation by IDE
+Documentation=https://store.codesys.com
+
+[Path]
+# Triggered when CODESYS IDE deploys the runtime binary via SSH
+PathExists=/opt/codesys/bin/codesyscontrol
+# Re-check on each boot so a reinstall is also handled
+Unit=codesys-ide-install.service
+
+[Install]
+WantedBy=multi-user.target

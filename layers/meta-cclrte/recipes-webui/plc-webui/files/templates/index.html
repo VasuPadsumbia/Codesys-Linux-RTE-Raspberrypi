@@ -56,24 +56,111 @@
   <div class="card">
     <div class="card-header">Hardware</div>
     <div class="card-body">
-      <div class="info-row"><span>CPU Temp</span><strong>{{ temp }} &#176;C</strong></div>
+      <div class="info-row"><span>CPU Temp</span><strong id="hw-temp">{{ temp }} &#176;C</strong></div>
       <div class="info-row"><span>Uptime</span><code>{{ uptime }}</code></div>
-      <div class="info-row"><span>Platform</span><code>Raspberry Pi 4B</code></div>
-      <div class="info-row"><span>RT Mode</span><code>PREEMPT_RT</code></div>
+      <div class="info-row"><span>Platform</span><code>{{ platform }}</code></div>
+      <div class="info-row"><span>RT Mode</span><code>{{ rt_mode }}</code></div>
+    </div>
+  </div>
+
+  <div class="card" style="grid-column: span 2;">
+    <div class="card-header">PLC Load <small style="font-weight:normal;color:var(--muted)">live — updates every 2 s</small></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.2rem;">
+        <div>
+          <div class="load-label">CPU0 <span class="load-role">(OS)</span></div>
+          <div class="load-bar-wrap"><div class="load-bar" id="bar-cpu0"></div></div>
+          <div class="load-val" id="val-cpu0">—</div>
+        </div>
+        <div>
+          <div class="load-label">CPU1 <span class="load-role">(OS)</span></div>
+          <div class="load-bar-wrap"><div class="load-bar" id="bar-cpu1"></div></div>
+          <div class="load-val" id="val-cpu1">—</div>
+        </div>
+        <div>
+          <div class="load-label">CPU2 <span class="load-role">(EtherCAT)</span></div>
+          <div class="load-bar-wrap"><div class="load-bar load-bar-rt" id="bar-cpu2"></div></div>
+          <div class="load-val" id="val-cpu2">—</div>
+        </div>
+        <div>
+          <div class="load-label">CPU3 <span class="load-role">(CODESYS)</span></div>
+          <div class="load-bar-wrap"><div class="load-bar load-bar-rt" id="bar-cpu3"></div></div>
+          <div class="load-val" id="val-cpu3">—</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+        <div>
+          <div class="load-label">Memory</div>
+          <div class="load-bar-wrap"><div class="load-bar" id="bar-mem"></div></div>
+          <div class="load-val" id="val-mem">—</div>
+        </div>
+        <div>
+          <div class="load-label">CODESYS Process CPU</div>
+          <div class="load-bar-wrap"><div class="load-bar load-bar-rt" id="bar-cs"></div></div>
+          <div class="load-val" id="val-cs">—</div>
+        </div>
+        <div>
+          <div class="load-label">CPU Temp</div>
+          <div class="load-bar-wrap"><div class="load-bar load-bar-temp" id="bar-temp"></div></div>
+          <div class="load-val" id="val-temp">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">SSH Access</div>
+    <div class="card-body">
+      <div class="info-row"><span>eth0 (wired)</span><code>ssh root@{{ eth0_ip }}</code></div>
+      <div class="info-row"><span>wlan0 (WiFi)</span><code>ssh root@{{ wlan_ip }}</code></div>
+      <div class="info-row"><span>Port</span><code>22</code></div>
+      <div class="info-muted" style="margin-top:0.5rem;font-size:0.8rem;">Both interfaces active. Add key via Network page.</div>
     </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-  // Auto-refresh status every 5 seconds
-  setInterval(() => {
-    fetch('/api/status').then(r => r.json()).then(data => {
-      document.querySelectorAll('[data-service]').forEach(el => {
-        const svc = el.dataset.service;
-        if (data[svc]) el.textContent = data[svc];
-      });
-    }).catch(() => {});
-  }, 5000);
+function setBar(barId, valId, pct, label) {
+  const bar = document.getElementById(barId);
+  const val = document.getElementById(valId);
+  if (!bar || !val) return;
+  const p = Math.min(100, Math.max(0, pct));
+  bar.style.width = p + '%';
+  bar.style.background = p > 85 ? 'var(--danger)' : p > 60 ? 'var(--warning)' : null;
+  val.textContent = label;
+}
+
+function refreshLoad() {
+  fetch('/api/load').then(r => r.json()).then(d => {
+    setBar('bar-cpu0', 'val-cpu0', d.cpu.core0, d.cpu.core0 + '%');
+    setBar('bar-cpu1', 'val-cpu1', d.cpu.core1, d.cpu.core1 + '%');
+    setBar('bar-cpu2', 'val-cpu2', d.cpu.core2, d.cpu.core2 + '%');
+    setBar('bar-cpu3', 'val-cpu3', d.cpu.core3, d.cpu.core3 + '%');
+    if (d.memory.total_mb) {
+      setBar('bar-mem', 'val-mem', d.memory.percent,
+        d.memory.used_mb + ' / ' + d.memory.total_mb + ' MB (' + d.memory.percent + '%)');
+    }
+    const cs = d.codesys_cpu_pct;
+    setBar('bar-cs', 'val-cs', cs !== null ? cs : 0,
+      cs !== null ? cs + '%' : 'not running');
+    const t = d.temp_c;
+    setBar('bar-temp', 'val-temp', (t / 85) * 100, t + ' °C');
+    const hwTemp = document.getElementById('hw-temp');
+    if (hwTemp) hwTemp.textContent = t + ' °C';
+  }).catch(() => {});
+}
+
+refreshLoad();
+setInterval(refreshLoad, 2000);
+
+setInterval(() => {
+  fetch('/api/status').then(r => r.json()).then(data => {
+    document.querySelectorAll('[data-service]').forEach(el => {
+      const svc = el.dataset.service;
+      if (data[svc]) el.textContent = data[svc];
+    });
+  }).catch(() => {});
+}, 5000);
 </script>
 {% endblock %}

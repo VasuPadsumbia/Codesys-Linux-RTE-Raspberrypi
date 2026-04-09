@@ -1,13 +1,14 @@
-# eth0 — CODESYS programming and runtime port (static IP)
-# Connect the CODESYS IDE to this address (port 1217)
-# Do NOT use this interface for management — it is reserved for CODESYS
+# eth0 — CODESYS programming port (static IP) + SSH access
+# CODESYS IDE connects here on port 1217.
+# SSH is also available on this interface (sshd listens on all interfaces).
+# Primary management interface is wlan0; eth0 is for lab bench / wired access.
 
 [Match]
 Name=eth0
 
 [Network]
-Address=192.168.1.100/24
-Gateway=192.168.1.1
+Address=192.168.2.100/24
+Gateway=192.168.2.1
 DNS=8.8.8.8
 Description=CODESYS Programming Port
 

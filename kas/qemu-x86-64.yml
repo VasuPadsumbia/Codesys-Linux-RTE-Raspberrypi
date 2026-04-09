@@ -6,9 +6,8 @@
 #         kas build kas/qemu-x86-64.yml
 header:
   version: 14
-
-includes:
-  - base.yml
+  includes:
+    - kas/base.yml
 
 machine: qemux86-64
 target: cclrte-image-qemu
@@ -16,6 +15,14 @@ target: cclrte-image-qemu
 local_conf_header:
   qemu: |
     QB_SYSTEM_NAME = "qemu-system-x86_64"
+
+    # Shallow git clones — fetch only the latest commit, not full history.
+    # Reduces linux-yocto download from ~4 GB to ~300 MB.
+    BB_GIT_SHALLOW = "1"
+
+    # Pseudo (fake-root) chown fix — zoneinfo symlinks cause EINVAL on some
+    # filesystems. Tell pseudo to skip ownership tracking for these paths.
+    PSEUDO_IGNORE_PATHS .= ":/usr/share/zoneinfo"
 
     # Enable KVM hardware acceleration when /dev/kvm is available.
     # Falls back to software emulation silently when it is not.
@@ -26,3 +33,12 @@ local_conf_header:
 
     # Disable RPi-only firmware features
     RPI_USE_U_BOOT = "0"
+
+    # Skip hardware-specific recipes not needed for QEMU CI image.
+    # Xenomai kernel recipe requires meta-raspberrypi (linux-raspberrypi.inc).
+    # IO-Link and PROFINET require hardware not present in QEMU.
+    BBMASK += "meta-cclrte/recipes-connectivity/iolink"
+    BBMASK += "meta-cclrte/recipes-connectivity/profinet"
+    BBMASK += "meta-cclrte/recipes-kernel/linux-xenomai"
+    BBMASK += "meta-cclrte/recipes-kernel/linux/linux-raspberrypi"
+    BBMASK += "meta-cclrte/recipes-bsp/rpi-config"

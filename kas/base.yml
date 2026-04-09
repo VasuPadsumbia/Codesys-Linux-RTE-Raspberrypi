@@ -6,15 +6,15 @@ header:
 repos:
   poky:
     url: https://git.yoctoproject.org/poky
-    refspec: scarthgap
+    branch: scarthgap
     layers:
       meta:
       meta-poky:
       meta-yocto-bsp:
 
   meta-openembedded:
-    url: https://github.com/openembedded/meta-openembedded
-    refspec: scarthgap
+    url: git@github.com:openembedded/meta-openembedded
+    branch: scarthgap
     layers:
       meta-oe:
       meta-networking:
@@ -39,9 +39,10 @@ local_conf_header:
     EXTRA_IMAGE_FEATURES += "ssh-server-openssh"
     PACKAGE_CLASSES = "package_ipk"
 
-    # Parallel builds — use all host cores
-    BB_NUMBER_THREADS = "${@oe.utils.cpu_count()}"
-    PARALLEL_MAKE     = "-j ${@oe.utils.cpu_count()}"
+    # Parallel builds — capped to avoid OOM on 14 GB RAM systems.
+    # Full cpu_count() with 16 cores causes system crashes during GCC builds.
+    BB_NUMBER_THREADS = "4"
+    PARALLEL_MAKE     = "-j 2"
 
     # Shared caches — one level above build dir, shared across all targets
     DL_DIR    ?= "${TOPDIR}/../downloads"

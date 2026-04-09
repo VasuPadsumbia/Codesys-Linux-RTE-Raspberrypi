@@ -1,0 +1,26 @@
+[Unit]
+Description=CODESYS Gateway — IDE communication broker (port 1217)
+Documentation=https://store.codesys.com
+After=network.target
+# Start immediately at boot — gateway must be reachable so IDE can discover
+# and install the runtime remotely, even before runtime binary exists.
+ConditionPathExists=/opt/codesys/gateway/codesysgateway
+
+[Service]
+Type=forking
+PIDFile=/run/codesys/codesysgateway.pid
+RuntimeDirectory=codesys
+RuntimeDirectoryMode=0755
+
+ExecStart=/opt/codesys/gateway/codesysgateway -d
+ExecStop=/opt/codesys/gateway/codesysgateway -k
+
+Restart=on-failure
+RestartSec=3s
+
+# Gateway does not need RT scheduling — it is a communication bridge only
+# Keep it on CPU0/1 so RT cores stay clean
+CPUAffinity=0 1
+
+[Install]
+WantedBy=multi-user.target

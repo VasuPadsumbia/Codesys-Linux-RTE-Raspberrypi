@@ -3,6 +3,6 @@
 
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
-# All RT firmware settings are applied via RPI_EXTRA_CONFIG in rpi4-cclrte.conf.
+# All RT firmware settings are applied via RPI_EXTRA_CONFIG in rpi5-cclrte.conf.
 # The fragment file is kept for reference and manual flashing scenarios.
 SRC_URI:append = " file://config.txt.fragment"

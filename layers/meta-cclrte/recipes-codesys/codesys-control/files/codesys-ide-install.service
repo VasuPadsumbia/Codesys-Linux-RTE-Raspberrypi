@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply RT settings after CODESYS IDE runtime installation
+After=rt-setup.service
+Requires=rt-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/codesys-post-install.sh
+
+[Install]
+WantedBy=multi-user.target

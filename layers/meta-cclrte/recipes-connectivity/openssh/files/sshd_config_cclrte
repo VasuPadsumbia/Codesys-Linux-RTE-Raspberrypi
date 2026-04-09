@@ -1,0 +1,23 @@
+# CCLRTE sshd configuration
+# SSH is available on ALL interfaces: eth0 (192.168.2.100) and wlan0 (DHCP)
+ListenAddress 0.0.0.0
+
+# Authentication
+PermitRootLogin yes
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication yes
+
+# Hardening
+MaxAuthTries 5
+LoginGraceTime 30
+ClientAliveInterval 120
+ClientAliveCountMax 3
+
+# No X11 / DNS lookups (faster connect on embedded)
+X11Forwarding no
+UseDNS no
+PrintMotd no
+
+# Allow port forwarding (useful for CODESYS IDE tunnel over wlan0)
+AllowTcpForwarding yes

@@ -2,7 +2,7 @@ DESCRIPTION = "IgH EtherCAT Master for Linux — kernel module and userspace too
 HOMEPAGE = "https://gitlab.com/etherlab.org/ethercat"
 LICENSE = "GPL-2.0-only & LGPL-2.1-only"
 LIC_FILES_CHKSUM = " \
-    file://COPYING;md5=b234ee4d69f5fce4486a80fdaf4a4263 \
+    file://COPYING;md5=59530bdf33659b29e73d4adb9f9f6552 \
     file://COPYING.LESSER;md5=4fbd65380cdd255951079008b364516c \
 "
 
@@ -13,17 +13,24 @@ SRC_URI = " \
     file://ethercat.conf \
     file://ethercat.service \
 "
-SRC_URI[sha256sum] = "33f20e33d970f9a37b19b0d6b7d1a9a0b1e9e5e9cf2d9a8e3b3e5e3e3e3e3e3e"
-# NOTE: Replace the sha256sum above with the actual checksum after downloading:
-#   wget https://gitlab.com/etherlab.org/ethercat/-/archive/1.5.2/ethercat-1.5.2.tar.gz
-#   sha256sum ethercat-1.5.2.tar.gz
+SRC_URI[sha256sum] = "c266f143b01ea6c618b54d85068e90662c25c56a7888fad1e0eafccf03388ceb"
 
 S = "${WORKDIR}/ethercat-1.5.2"
 
 DEPENDS = "virtual/kernel"
 
+# automake requires ChangeLog — not included in the GitLab archive tarball.
+# AM_INIT_AUTOMAKE has -Werror; add subdir-objects to silence the related warning.
+do_configure:prepend() {
+    touch ${S}/ChangeLog
+    sed -i 's/AM_INIT_AUTOMAKE(\[-Wall -Werror/AM_INIT_AUTOMAKE([-Wall -Werror subdir-objects/' ${S}/configure.ac
+}
+
+# lib/ioctl.h includes master/ioctl.h relative to source root — add it to include path
+CFLAGS:append = " -I${S}"
+
 EXTRA_OECONF = " \
-    --with-linux-dir=${STAGING_KERNEL_DIR} \
+    --with-linux-dir=${STAGING_KERNEL_BUILDDIR} \
     --enable-generic \
     --disable-8139too \
     --disable-e100 \
@@ -47,5 +54,12 @@ do_install:append() {
 SYSTEMD_SERVICE:${PN} = "ethercat.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
-FILES:${PN} += "${sysconfdir}/ethercat.conf"
+FILES:${PN} += " \
+    ${sysconfdir}/ethercat.conf \
+    ${sysconfdir}/sysconfig/ethercat \
+    ${sbindir}/ethercatctl \
+    ${bindir}/ethercat \
+    ${libdir}/libethercat.so.* \
+"
+FILES:${PN}-dev += "${libdir}/libethercat.so"
 RDEPENDS:${PN} = "bash"

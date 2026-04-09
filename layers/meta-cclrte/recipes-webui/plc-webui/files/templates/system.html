@@ -11,7 +11,7 @@
   <div class="card">
     <div class="card-header">Hardware</div>
     <div class="card-body">
-      <div class="info-row"><span>Platform</span><code>Raspberry Pi 4B 4GB</code></div>
+      <div class="info-row"><span>Platform</span><code>{{ platform }}</code></div>
       <div class="info-row"><span>Kernel</span><code>{{ kernel }}</code></div>
       <div class="info-row"><span>Uptime</span><code>{{ uptime }}</code></div>
       <div class="info-row"><span>CPU Temp</span><strong id="temp">{{ temp }} &#176;C</strong></div>
@@ -25,16 +25,26 @@
     <div class="card-body">
       {% if rt_result %}
       <div class="rt-result {% if rt_result.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
-        <strong>{{ rt_result.status }}</strong> &#8212; max {{ rt_result.max_latency_us }} &#181;s
+        <strong>{{ rt_result.status }}</strong> &#8212; worst {{ rt_result.worst_max_us }} &#181;s
+        (threshold {{ rt_result.threshold_us }} &#181;s)
       </div>
+      <table style="width:100%;margin-top:0.6rem;font-size:0.85rem;border-collapse:collapse">
+        <tr><th style="text-align:left;padding:2px 6px">Core</th><th style="padding:2px 6px">Max &#181;s</th><th style="padding:2px 6px">Avg &#181;s</th><th style="padding:2px 6px">Priority</th></tr>
+        <tr><td style="padding:2px 6px">CPU0+1 (OS) SMP</td>  <td style="padding:2px 6px">{{ rt_result.smp_max_us }}</td>  <td>—</td><td style="padding:2px 6px">FIFO 80</td></tr>
+        {% if rt_result.cpu2_ethercat %}
+        <tr><td style="padding:2px 6px">CPU2 (EtherCAT)</td>  <td style="padding:2px 6px">{{ rt_result.cpu2_ethercat.max_us }}</td>  <td style="padding:2px 6px">{{ rt_result.cpu2_ethercat.avg_us }}</td>  <td style="padding:2px 6px">FIFO {{ rt_result.cpu2_ethercat.priority }}</td></tr>
+        <tr><td style="padding:2px 6px">CPU3 (CODESYS)</td>   <td style="padding:2px 6px">{{ rt_result.cpu3_codesys.max_us }}</td>   <td style="padding:2px 6px">{{ rt_result.cpu3_codesys.avg_us }}</td>   <td style="padding:2px 6px">FIFO {{ rt_result.cpu3_codesys.priority }}</td></tr>
+        {% endif %}
+      </table>
+      <p class="info-muted" style="font-size:0.8rem;margin-top:0.4rem">{{ rt_result.timestamp }} &mdash; {{ rt_result.duration_sec }}s per phase</p>
       {% else %}
       <p class="info-muted">Not yet run.</p>
       {% endif %}
       <form method="POST" style="margin-top:0.75rem">
         <input type="hidden" name="action" value="rt_verify">
-        <button type="submit" class="btn btn-secondary">Run cyclictest (60s)</button>
+        <button type="submit" class="btn btn-secondary">Run cyclictest (~3 min)</button>
       </form>
-      <p class="info-muted">Removes the result stamp and re-runs RT latency verification.</p>
+      <p class="info-muted">Tests CPU2 (EtherCAT FIFO 90) and CPU3 (CODESYS FIFO 80) independently. CODESYS/EtherCAT do not need to be running.</p>
     </div>
   </div>
 

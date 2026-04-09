@@ -21,9 +21,11 @@ do_install() {
 
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/rt-verify.service ${D}${systemd_system_unitdir}/rt-verify.service
-
-    install -d ${D}${localstatedir}/log
+    # /var/log already exists on target — do not pre-create to avoid empty-dirs QA error
 }
 
 # rt-tests provides cyclictest binary
 RDEPENDS:${PN} = "rt-tests bash python3"
+
+# systemd bbclass may pre-create /var/volatile dirs; suppress spurious QA warning
+INSANE_SKIP:${PN} += "empty-dirs"

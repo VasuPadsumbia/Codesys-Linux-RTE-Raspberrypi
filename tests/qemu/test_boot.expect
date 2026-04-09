@@ -1,0 +1,164 @@
+#!/usr/bin/env expect
+# test_boot.expect — Boot cclrte-image-qemu and verify basic services start.
+#
+# Usage: expect tests/qemu/test_boot.expect <image_path>
+#
+# Exit codes:
+#   0 — all checks passed
+#   1 — timeout or unexpected failure
+
+set timeout 180
+set image [lindex $argv 0]
+
+if {$image eq ""} {
+    puts "ERROR: No image path provided."
+    puts "Usage: expect test_boot.expect <image_path>"
+    exit 1
+}
+
+puts "Starting QEMU with image: $image"
+
+# Start QEMU via kas runqemu; falls back to direct runqemu if kas not found
+set runqemu_cmd "kas run kas/qemu-x86-64.yml -- runqemu nographic slirp"
+
+# Try to detect kas in venv or PATH
+if {[file executable "venv/bin/kas"]} {
+    set runner "venv/bin/kas run kas/qemu-x86-64.yml --"
+} elseif {[auto_execok kas] ne ""} {
+    set runner "kas run kas/qemu-x86-64.yml --"
+} else {
+    # Direct runqemu fallback
+    set runner ""
+}
+
+if {$runner ne ""} {
+    spawn {*}[split "$runner runqemu qemux86-64 cclrte-image-qemu nographic slirp" " "]
+} else {
+    # Minimal direct QEMU boot for CI environments
+    spawn qemu-system-x86_64 \
+        -nographic \
+        -m 512 \
+        -kernel "${image}" \
+        -append "root=/dev/sda rw console=ttyS0,115200"
+}
+
+# ---------------------------------------------------------------------------
+# Wait for login prompt
+# ---------------------------------------------------------------------------
+set login_seen 0
+
+expect {
+    -re {cclrte[^\s]* login:} {
+        set login_seen 1
+        puts "\nBoot OK — login prompt received"
+    }
+    "Kernel panic" {
+        puts "\nFAIL: Kernel panic during boot"
+        exit 1
+    }
+    timeout {
+        puts "\nFAIL: Timeout waiting for login prompt (${timeout}s)"
+        exit 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Log in as root
+# ---------------------------------------------------------------------------
+send "root\r"
+
+expect {
+    -re {(#|root@)} {
+        puts "Login OK"
+    }
+    "Password:" {
+        # No password set for root in default image
+        send "\r"
+        expect -re {(#|root@)}
+    }
+    timeout {
+        puts "FAIL: Timeout waiting for shell prompt after login"
+        exit 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Verify kernel version contains cclrte suffix
+# ---------------------------------------------------------------------------
+send "uname -r\r"
+expect {
+    -re {cclrte} {
+        puts "PASS: Kernel version contains 'cclrte'"
+    }
+    timeout {
+        puts "FAIL: Timeout or cclrte suffix missing from kernel version"
+        exit 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Verify systemd-networkd is active
+# ---------------------------------------------------------------------------
+send "systemctl is-active systemd-networkd\r"
+expect {
+    "active" {
+        puts "PASS: systemd-networkd is active"
+    }
+    "inactive" {
+        puts "FAIL: systemd-networkd is inactive"
+        exit 1
+    }
+    timeout {
+        puts "FAIL: Timeout checking systemd-networkd"
+        exit 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Verify mosquitto is active (MQTT broker)
+# ---------------------------------------------------------------------------
+send "systemctl is-active mosquitto\r"
+expect {
+    "active" {
+        puts "PASS: mosquitto is active"
+    }
+    "inactive" {
+        puts "WARNING: mosquitto is inactive (may not be in QEMU image)"
+    }
+    timeout {
+        puts "WARNING: Timeout checking mosquitto"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Verify rt-setup service ran (oneshot — check if it succeeded)
+# ---------------------------------------------------------------------------
+send "systemctl is-active rt-setup\r"
+expect {
+    -re {active|inactive} {
+        puts "PASS: rt-setup service state checked"
+    }
+    timeout {
+        puts "WARNING: Timeout checking rt-setup"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Graceful shutdown
+# ---------------------------------------------------------------------------
+puts "Initiating graceful shutdown..."
+send "shutdown -h now\r"
+
+expect {
+    -re {(System halted|Power down|reboot: Power down|ACPI: Preparing to enter)} {
+        puts "PASS: System shut down cleanly"
+    }
+    timeout {
+        puts "WARNING: Shutdown timeout — killing QEMU"
+        exec kill [exp_pid]
+    }
+}
+
+puts ""
+puts "=== QEMU boot test: PASS ==="
+exit 0

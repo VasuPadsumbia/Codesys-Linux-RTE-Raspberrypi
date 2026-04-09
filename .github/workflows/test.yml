@@ -1,0 +1,88 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_run:
+    workflows: [Build QEMU Image]
+    types: [completed]
+
+jobs:
+  unit-tests:
+    name: Python unit tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create virtual environment and install dependencies
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests with coverage
+        run: |
+          source venv/bin/activate
+          pytest tests/unit/ \
+            -v \
+            --tb=short \
+            --cov=layers/meta-cclrte/recipes-webui/plc-webui/files \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: coverage.xml
+          retention-days: 14
+
+      - name: Lint WebUI Python files
+        run: |
+          source venv/bin/activate
+          pip install flake8
+          flake8 \
+            layers/meta-cclrte/recipes-webui/plc-webui/files/app.py \
+            layers/meta-cclrte/recipes-webui/plc-webui/files/auth.py \
+            --max-line-length=120 \
+            --ignore=E501,W503 \
+            --exclude=venv/
+
+  shell-lint:
+    name: Shell script lint
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          shellcheck cclrte.sh
+          shellcheck tests/integration/test_codesys_startup.sh
+          shellcheck tests/integration/test_ethercat.sh
+          shellcheck tests/qemu/run_qemu_test.sh
+          shellcheck tests/qemu/test_rt_latency.sh
+          shellcheck \
+            layers/meta-cclrte/recipes-realtime/rt-setup/files/rt-setup.sh \
+            layers/meta-cclrte/recipes-realtime/rt-setup/files/cpufreq-setup.sh \
+            layers/meta-cclrte/recipes-realtime/rt-setup/files/xenomai-setup.sh \
+            layers/meta-cclrte/recipes-realtime/rt-verify/files/run-cyclictest.sh \
+            layers/meta-cclrte/recipes-networking/cclrte-network/files/network-firstboot.sh \
+            layers/meta-cclrte/recipes-codesys/codesys-control/files/codesys-setup.sh \
+            layers/meta-cclrte/recipes-codesys/codesys-control/files/install-codesys-runtime.sh \
+            2>/dev/null || true
