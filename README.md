@@ -133,7 +133,7 @@ ssh root@192.168.2.100
 /usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
 ```
 
-The script extracts the `.deb` with `ar`/`tar` (no dpkg needed), installs to `/opt/codesys/`, and applies RT tuning automatically.
+The script parses the `.deb` ar archive using Python3 (no `ar`, `dpkg`, or `apt` needed), installs to `/opt/codesys/`, and applies RT tuning automatically.
 
 ### 7. Connect CODESYS IDE
 

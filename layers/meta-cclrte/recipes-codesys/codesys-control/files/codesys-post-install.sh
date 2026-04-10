@@ -26,9 +26,10 @@ if [[ ! -f "$DROPIN_DIR/rt-override.conf" ]]; then
 fi
 
 # ── 2. Ensure CODESYSControl.cfg has RT settings ──────────────────────────────
-if [[ ! -f /etc/CODESYSControl.cfg ]]; then
+if [[ ! -f /etc/codesyscontrol/CODESYSControl.cfg ]]; then
     log "CODESYSControl.cfg missing — restoring from /etc/codesys/"
-    cp /etc/codesys/CODESYSControl.cfg /etc/CODESYSControl.cfg
+    mkdir -p /etc/codesyscontrol
+    cp /etc/codesys/CODESYSControl.cfg /etc/codesyscontrol/CODESYSControl.cfg
 fi
 
 # ── 3. Runtime directories ────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ systemctl start codesyscontrol.service || log "Runtime start failed — check jo
 # systemd CPUAffinity/CPUSchedulingPolicy apply at start, but enforce here too
 # in case process forks and systemd loses track
 sleep 2
-PID=$(pgrep -x codesyscontrol 2>/dev/null || true)
+PID=$(pgrep -x codesyscontrol.bin 2>/dev/null || pgrep -x codesyscontrol 2>/dev/null || true)
 if [[ -n "$PID" ]]; then
     log "Applying SCHED_FIFO 80 + CPU3 affinity to PID $PID"
     chrt -f -p 80 "$PID"    2>/dev/null || true

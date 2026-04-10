@@ -208,25 +208,30 @@ local-fs.target
 
 ## CODESYS Runtime Deployment
 
-CODESYS Control for Linux SL is a closed-license binary not bundled in the image. It is deployed after first boot via the CODESYS IDE:
+CODESYS Control for Linux SL is a closed-license binary not bundled in the image. It is deployed after first boot using the manual install script (the CODESYS IDE "Update Raspberry Pi" wizard uses `dpkg` and reads `/proc/cpuinfo` for ARMv7 — both fail on Yocto arm64):
 
 ```
-CODESYS IDE (PC)
-    └── Tools → Update Raspberry Pi / Linux SL
-            └── SSH to 192.168.2.100 (eth0)
-                    └── IDE installs /opt/codesys/* via SSH
-                            └── codesys-ide-install.path (systemd.path watcher)
-                                    └── codesys-post-install.sh
-                                            ├── Apply RT drop-in (CPU3, SCHED_FIFO 80)
-                                            ├── Enable codesyscontrol.service
-                                            └── Start runtime
+From your PC:
+    scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
+
+On the RPi5:
+    /usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+            ├── Python3 parses .deb ar archive (no dpkg/ar binary needed)
+            ├── tar extracts runtime to /opt/codesys/
+            ├── ldconfig updates shared library cache
+            └── codesys-post-install.sh
+                    ├── Apply RT drop-in (CPU3, SCHED_FIFO 80)
+                    ├── Remove /etc/init.d/codesyscontrol (SysV conflict)
+                    ├── Enable codesyscontrol.service
+                    └── Start runtime
 ```
 
 The Yocto image pre-installs:
-- `/etc/CODESYSControl.cfg` — runtime config (SysCPUAffinity=0x08, Watchdog, OPC-UA)
-- `codesyscontrol.service.d/rt-override.conf` — SCHED_FIFO 80 + CPU3 taskset
+- `/etc/codesyscontrol/CODESYSControl.cfg` — runtime config (SysCPUAffinity=0x08, OPC-UA port 4840)
+- `codesyscontrol.service.d/rt-override.conf` — SCHED_FIFO 80 + CPU3 + MEMLOCK=unlimited
 - `/opt/codesys/` directory structure
-- The `codesys-ide-install.path` watcher that triggers post-install automatically
+- `/usr/sbin/install-codesys-runtime.sh` — Python3-based .deb extractor
+- `/usr/sbin/codesys-post-install.sh` — RT tuning and service activation
 
 ---
 
@@ -252,6 +257,8 @@ The `run-cyclictest.sh` script runs three independent phases:
 
 CODESYS and EtherCAT services do **not** need to be running — the test measures kernel RT latency, not application behavior.
 
+Pass/fail is determined by `worst_max_us` which is the **maximum of CPU2 and CPU3 only**. The SMP baseline (`smp_max_us`) is for OS noise characterization and is explicitly excluded — OS cores (CPU0/1) are expected to have higher jitter under load.
+
 Example result (JSON):
 ```json
 {
@@ -259,10 +266,11 @@ Example result (JSON):
   "status": "PASS",
   "threshold_us": 100,
   "duration_sec": 60,
+  "interval_us": 500,
   "smp_max_us": 42,
   "cpu2_ethercat": { "max_us": 38, "avg_us": 12, "priority": 90 },
   "cpu3_codesys":  { "max_us": 41, "avg_us": 14, "priority": 80 },
-  "worst_max_us":  42
+  "worst_max_us":  41
 }
 ```
 

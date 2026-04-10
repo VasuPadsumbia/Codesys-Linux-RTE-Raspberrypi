@@ -55,8 +55,13 @@ CODESYS Control for Linux SL must be linked against Xenomai's `libcobalt` to run
 CODESYS Control for Linux SL is a **closed-source commercial product** by CODESYS GmbH. It is governed by the CODESYS End-User License Agreement and is **not distributed with this project**.
 
 You must:
-1. Purchase or obtain an evaluation license from [store.codesys.com](https://store.codesys.com)
-2. Install using the CODESYS IDE's built-in Linux SL deployment wizard (Tools → Update Raspberry Pi)
+1. Purchase or obtain an evaluation license from [store.codesys.com](https://store.codesys.com) — download the `.deb` package
+2. Deploy using the manual install script (the CODESYS IDE "Update Raspberry Pi" wizard uses `dpkg` and checks `/proc/cpuinfo` for ARMv7 — **both fail on Yocto arm64**):
+
+```bash
+scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
+ssh root@192.168.2.100 /usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+```
 
 The Yocto recipes in this project build the OS environment (config, service definitions, directory layout) but **the runtime binary is not present at build time**.
 
@@ -175,7 +180,7 @@ KAS configuration format version 14 (`header.version: 14`) requires KAS >= 4.0. 
 | PREEMPT_RT max latency > 100 µs possible   | Medium     | Use Xenomai build                               |
 | WiFi IRQ interference                      | Low        | Disable wlan0 for critical deployments          |
 | USB EtherCAT NIC latency                   | Low-Medium | Use dedicated PCIe/native NIC via HAT           |
-| CODESYS binary not included                | High       | Obtain and deploy via CODESYS IDE               |
+| CODESYS binary not included                | High       | Obtain from store.codesys.com; deploy via `install-codesys-runtime.sh` |
 | Xenomai Dovetail not yet stable on BCM2712 | High       | Use PREEMPT_RT until upstream support confirmed |
 | PROFINET controller not supported          | Medium     | Requires CODESYS PROFINET SL add-on             |
 | IO-Link limited to 4 ports                 | Low        | Modify iol driver for more ports                |

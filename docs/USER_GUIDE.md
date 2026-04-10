@@ -263,8 +263,8 @@ cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 
 # CODESYS CPU affinity and priority
 ps -eo pid,comm,cls,pri,psr | grep codesys
-chrt -p $(pgrep codesyscontrol)
-taskset -p $(pgrep codesyscontrol)
+chrt -p $(pgrep -x codesyscontrol.bin 2>/dev/null || pgrep codesyscontrol)
+taskset -p $(pgrep -x codesyscontrol.bin 2>/dev/null || pgrep codesyscontrol)
 
 # EtherCAT master threads
 ps -eo pid,comm,cls,pri,psr | grep ec_
@@ -302,7 +302,7 @@ Network page → wlan0 section → update SSID/Password → Apply.
 ### Via SSH
 
 ```bash
-wpa_passphrase "NewSSID" "NewPassword" | head -n -1 > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+wpa_passphrase "NewSSID" "NewPassword" > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 echo "disable_scan_offload=1" >> /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 systemctl restart wpa_supplicant@wlan0
 ```
@@ -343,4 +343,4 @@ If the system locks up or `codesyscontrol` hangs the kernel:
 - The system reboots automatically
 - `codesyscontrol.service` restarts and resumes the last downloaded PLC program
 
-CODESYS also has its own internal watchdog (`WatchdogSec=10s` in the systemd unit) that kills and restarts the runtime if it stops responding.
+The systemd service uses `Restart=on-failure` so if `codesyscontrol.bin` exits unexpectedly it is restarted automatically after 5 seconds.

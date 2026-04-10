@@ -242,12 +242,15 @@ A passing result:
   "status": "PASS",
   "threshold_us": 100,
   "duration_sec": 60,
+  "interval_us": 500,
   "smp_max_us": 42,
   "cpu2_ethercat": { "max_us": 38, "avg_us": 12, "priority": 90 },
   "cpu3_codesys":  { "max_us": 41, "avg_us": 14, "priority": 80 },
-  "worst_max_us":  42
+  "worst_max_us":  41
 }
 ```
+
+`worst_max_us` is the worst of CPU2 and CPU3 only (isolated RT cores). The SMP baseline (`smp_max_us`) is excluded — OS cores 0 and 1 are expected to have higher jitter and are not the pass/fail gate.
 
 If `worst_max_us` >= 100, consider the Xenomai build.
 
@@ -271,14 +274,16 @@ ssh root@192.168.2.100
 /usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
 ```
 
-The install script extracts the `.deb` using `ar x` + `tar xf` (no dpkg needed), installs to `/opt/codesys/`, then calls `codesys-post-install.sh` which applies RT tuning (SCHED_FIFO 80, CPU3) and starts the service.
+The install script parses the `.deb` ar archive using **Python3** (no `ar`, `dpkg`, or `apt` needed), extracts the runtime to `/`, then calls `codesys-post-install.sh` which applies RT tuning (SCHED_FIFO 80, CPU3 affinity) and starts the service.
 
 **Verify installation:**
 
 ```bash
 systemctl status codesyscontrol
-ss -tlnp | grep 1217   # Gateway port
-ss -tlnp | grep 4840   # OPC-UA port
+ls /opt/codesys/bin/codesyscontrol.bin    # binary must exist
+journalctl -u codesyscontrol -n 20 --no-pager
+netstat -tlnp | grep 1217   # Gateway port (or: cat /proc/net/tcp)
+netstat -tlnp | grep 4840   # OPC-UA port
 ```
 
 ### Step 10: Connect CODESYS IDE
@@ -321,7 +326,7 @@ The WebUI provides:
 | No wlan0 connection | Check `WIFI_SSID`/`WIFI_PASSWORD` and `WIFI_COUNTRY` in `config/site.conf`; `journalctl -u wpa_supplicant@wlan0` |
 | eth0 not at 192.168.2.100 | Run `networkctl status eth0`; check `/etc/systemd/network/10-eth0.network` |
 | network-firstboot did not run | Check `journalctl -u network-firstboot`; verify `/boot/site.conf` exists |
-| codesyscontrol not starting | Install runtime via CODESYS IDE first; `journalctl -u codesyscontrol -e` |
+| codesyscontrol not starting | Check `ls /opt/codesys/bin/codesyscontrol.bin` — if missing, run `install-codesys-runtime.sh`; then `journalctl -u codesyscontrol -e` |
 | High RT latency (> 100 µs) | Verify `scaling_governor` = `performance`; check USB device interrupts; consider Xenomai build |
 | EtherCAT in ACTIVATING state | Set MAC address of USB-NIC via WebUI Protocols page or: `echo 'MASTER0_DEVICE="aa:bb:cc:dd:ee:ff"' > /etc/ethercat.conf` |
 | Build fails with layer error | Verify kas version >= 4.0; check Xenomai: Dovetail patches placed correctly |
