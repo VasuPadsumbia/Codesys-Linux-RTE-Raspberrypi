@@ -52,9 +52,11 @@
       <div class="rt-result {% if rt_result.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
         <div class="rt-status">{{ rt_result.status }}</div>
         <div class="rt-metrics">
-          <div>Max latency: <strong>{{ rt_result.max_latency_us }} &#181;s</strong></div>
-          <div>Threshold:   {{ rt_result.threshold_us }} &#181;s</div>
-          <div>Interval:    {{ rt_result.interval_us }} &#181;s (cycle time target)</div>
+          <div>Worst RT max: <strong>{{ rt_result.worst_max_us }} &#181;s</strong></div>
+          <div>CPU2 (EtherCAT): {{ rt_result.cpu2_ethercat.max_us }} &#181;s</div>
+          <div>CPU3 (CODESYS):  {{ rt_result.cpu3_codesys.max_us }} &#181;s</div>
+          <div>Threshold: {{ rt_result.threshold_us }} &#181;s</div>
+          <div>Interval:  {{ rt_result.interval_us }} &#181;s (cycle time target)</div>
         </div>
       </div>
       {% if rt_result.status == 'FAIL' %}

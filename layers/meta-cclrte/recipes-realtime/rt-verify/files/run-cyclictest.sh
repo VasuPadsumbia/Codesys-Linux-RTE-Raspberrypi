@@ -15,7 +15,8 @@ INTERVAL_US=500         # µs — matches CODESYS 500µs scan cycle target
 
 # BusyBox-compatible timestamp (no -Iseconds)
 ts() { date '+%Y-%m-%dT%H:%M:%S'; }
-log() { echo "[$(ts)] CCLRTE-RTVERIFY: $*"; }
+# Write to stderr so log lines don't pollute stdout of run_phase subshell captures
+log() { echo "[$(ts)] CCLRTE-RTVERIFY: $*" >&2; }
 
 log "Starting RT latency verification"
 log "  Duration per phase : ${DURATION_SEC}s"
@@ -29,10 +30,12 @@ mkdir -p "$HISTOGRAM_DIR"
 # Usage: run_phase <cpu_num> <priority> <label>
 run_phase() {
     local cpu="$1" prio="$2" label="$3"
-    local histfile="${HISTOGRAM_DIR}/hist-cpu${cpu}.txt"
 
     log "Phase: ${label} — CPU${cpu}, SCHED_FIFO priority ${prio}"
 
+    # Do NOT use --histfile with --quiet — cyclictest redirects T: output to the
+    # histfile instead of stdout when both are set, leaving stdout empty.
+    # Use --quiet alone so T: summary lines go to stdout for parsing.
     local out
     out=$(cyclictest \
         --mlockall \
@@ -42,20 +45,19 @@ run_phase() {
         --interval="${INTERVAL_US}" \
         --distance=0 \
         --duration="${DURATION_SEC}" \
-        --histogram=500 \
-        --histfile="${histfile}" \
-        --quiet 2>&1) || true
+        --quiet 2>/dev/null) || true
 
-    # Parse max and avg from quiet output:
-    # Format: "T: 0 (  pid) I:   500 C: NNN Min:    N Act:    N Avg:    N Max:    N"
+    # T: line format (--quiet):
+    # "T: 0 (pid) I: 500 C: 120000 Min:  1 Act:  2 Avg:  2 Max: 47"
+    # Max is the last field, Avg is the field before "Max:"
     local max avg
-    max=$(echo "$out" | awk '/^T:/{m=$NF; if(m+0>max) max=m+0} END{print max+0}')
-    avg=$(echo "$out" | awk '/^T:/{sum+=$(NF-2); n++} END{print (n>0)?int(sum/n):0}')
+    max=$(echo "$out" | awk '/^T:/{
+        for(i=1;i<=NF;i++) if($i=="Max:") { v=$(i+1)+0; if(v>m) m=v }
+    } END{print m+0}')
+    avg=$(echo "$out" | awk '/^T:/{
+        for(i=1;i<=NF;i++) if($i=="Avg:") { sum+=$(i+1)+0; n++ }
+    } END{print (n>0)?int(sum/n):0}')
 
-    [[ -z "$max" || "$max" == "0" ]] && {
-        # Fallback: try "Max Latencies" line from non-quiet output
-        max=$(echo "$out" | awk '/Max Latencies/{for(i=3;i<=NF;i++) if($i+0>m) m=$i+0; print m+0}')
-    }
     max=${max:-0}
     avg=${avg:-0}
 
@@ -72,11 +74,11 @@ SMP_OUT=$(cyclictest \
     --interval="${INTERVAL_US}" \
     --distance=0 \
     --duration="${DURATION_SEC}" \
-    --histogram=500 \
-    --histfile="${HISTOGRAM_DIR}/hist-smp.txt" \
-    --quiet 2>&1) || true
+    --quiet 2>/dev/null) || true
 
-SMP_MAX=$(echo "$SMP_OUT" | awk '/Max Latencies/{for(i=3;i<=NF;i++) if($i+0>m) m=$i+0; print m+0}')
+SMP_MAX=$(echo "$SMP_OUT" | awk '/^T:/{
+    for(i=1;i<=NF;i++) if($i=="Max:") { v=$(i+1)+0; if(v>m) m=v }
+} END{print m+0}')
 SMP_MAX=${SMP_MAX:-0}
 log "SMP max latency: ${SMP_MAX}µs"
 
@@ -88,9 +90,10 @@ read -r CPU2_MAX CPU2_AVG <<< "$(run_phase 2 90 'EtherCAT-CPU2')"
 log "=== Phase 3/3: CPU3 — CODESYS priority (SCHED_FIFO 80) ==="
 read -r CPU3_MAX CPU3_AVG <<< "$(run_phase 3 80 'CODESYS-CPU3')"
 
-# ── Overall pass/fail: worst of CPU2 and CPU3 (the RT-critical cores) ─────────
+# ── Overall pass/fail: worst of CPU2 and CPU3 only ────────────────────────────
+# SMP baseline (smp_max_us) is EXCLUDED from pass/fail — OS cores (CPU0/1) are
+# expected to have higher jitter under load. Only the isolated RT cores matter.
 WORST_MAX=$(( CPU2_MAX > CPU3_MAX ? CPU2_MAX : CPU3_MAX ))
-WORST_MAX=$(( WORST_MAX > SMP_MAX ? WORST_MAX : SMP_MAX ))
 
 if [[ "$WORST_MAX" -le "$PASS_THRESHOLD_US" ]]; then
     STATUS="PASS"

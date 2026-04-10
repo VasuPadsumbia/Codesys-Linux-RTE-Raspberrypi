@@ -5,17 +5,21 @@ After=network.target rt-setup.service ethercat.service codesysgateway.service
 Wants=ethercat.service codesysgateway.service
 Requires=rt-setup.service
 # Do not start if binary is not yet installed by CODESYS IDE
-ConditionPathExists=/opt/codesys/bin/codesyscontrol
+ConditionPathExists=/opt/codesys/bin/codesyscontrol.bin
 
 [Service]
-Type=forking
-PIDFile=/run/codesys/codesyscontrol.pid
+# codesyscontrol.bin does not self-daemonize — the init.d script runs it with &
+# Use Type=simple so systemd tracks the process directly.
+Type=simple
+WorkingDirectory=/var/opt/codesys
 RuntimeDirectory=codesys
 RuntimeDirectoryMode=0755
 
 ExecStartPre=/usr/sbin/codesys-setup.sh
-ExecStart=/opt/codesys/bin/codesyscontrol -d -c /etc/CODESYSControl.cfg
-ExecStop=/opt/codesys/bin/codesyscontrol -k
+# Config file is the first positional argument (no -d / -c flags)
+ExecStart=/opt/codesys/bin/codesyscontrol.bin /etc/codesyscontrol/CODESYSControl.cfg
+EnvironmentFile=-/etc/default/codesyscontrol
+Environment=LD_LIBRARY_PATH=/opt/codesys/lib
 
 Restart=on-failure
 RestartSec=5s
@@ -28,9 +32,6 @@ CPUAffinity=3
 LimitMEMLOCK=infinity
 LimitNOFILE=65536
 LimitSTACK=8388608
-
-WatchdogSec=10s
-NotifyAccess=main
 
 [Install]
 WantedBy=multi-user.target

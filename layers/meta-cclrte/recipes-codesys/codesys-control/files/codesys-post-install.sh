@@ -11,9 +11,10 @@
 #   5. Applies SCHED_FIFO + CPU affinity directly to the running process
 
 set -euo pipefail
+mkdir -p /var/log/codesys
 log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CODESYS-POST-INSTALL: $*" | tee -a /var/log/codesys/post-install.log; }
 
-log "CODESYS runtime detected at /opt/codesys/bin/codesyscontrol"
+log "CODESYS runtime detected at /opt/codesys/bin/codesyscontrol.bin"
 log "Applying RT configuration for PREEMPT_RT PLC environment"
 
 # ── 1. RT drop-in override ─────────────────────────────────────────────────────
@@ -43,7 +44,15 @@ if [[ ! -f /etc/ld.so.conf.d/codesys.conf ]]; then
 fi
 ldconfig
 
-# ── 4. Enable and start services ─────────────────────────────────────────────
+# ── 4. Remove SysV init script — the .deb installs /etc/init.d/codesyscontrol
+# which causes systemctl enable to look for systemd-sysv-install (not on Yocto).
+# Our systemd service unit handles everything — the init.d script is not needed.
+if [[ -f /etc/init.d/codesyscontrol ]]; then
+    rm /etc/init.d/codesyscontrol
+    log "Removed /etc/init.d/codesyscontrol (SysV script conflicts with systemd unit)"
+fi
+
+# ── 5. Enable and start services ─────────────────────────────────────────────
 log "Reloading systemd daemon"
 systemctl daemon-reload
 

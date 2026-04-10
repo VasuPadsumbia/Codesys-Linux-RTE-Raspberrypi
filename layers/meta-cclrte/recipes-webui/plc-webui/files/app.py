@@ -29,9 +29,9 @@ RT_RESULT    = '/var/log/cclrte-rt-result.txt'
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def run(cmd, check=False):
+def run(cmd, check=False, timeout=10):
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
         return r.stdout.strip(), r.returncode
     except Exception as e:
         return str(e), 1
@@ -154,11 +154,11 @@ def codesys_cpu():
 @login_required
 def index():
     status = {
-        'codesys':  service_status('codesyscontrol'),
-        'ethercat': service_status('ethercat'),
-        'webui':    'active',
+        'codesys':   service_status('codesyscontrol'),
+        'ethercat':  service_status('ethercat'),
+        'webui':     'active',
         'mosquitto': service_status('mosquitto'),
-        'watchdog': service_status('watchdog'),
+        'watchdog':  service_status('watchdog') or service_status('watchdog.service'),
     }
     rt = read_rt_result()
     eth0_ip  = get_ip('eth0')
@@ -283,14 +283,14 @@ def codesys():
             _, rc = run(f'systemctl {action} codesyscontrol')
             msg = ('success' if rc == 0 else 'error', f'CODESYS {action}')
         elif action == 'install_check':
-            exists = os.path.exists('/opt/codesys/bin/codesyscontrol')
+            exists = os.path.exists('/opt/codesys/bin/codesyscontrol.bin')
             msg = ('success' if exists else 'warning',
                    'Runtime installed' if exists else 'Runtime not installed — run install-codesys-runtime.sh')
 
     cs_status  = service_status('codesyscontrol')
     cs_log, _  = run('journalctl -u codesyscontrol -n 30 --no-pager 2>/dev/null || echo "No logs"')
     rt_result  = read_rt_result()
-    installed  = os.path.exists('/opt/codesys/bin/codesyscontrol')
+    installed  = os.path.exists('/opt/codesys/bin/codesyscontrol.bin')
     eth0_ip    = get_ip('eth0')
 
     return render_template('codesys.html',
@@ -314,10 +314,13 @@ def system():
             else:
                 msg = ('error', 'Current password incorrect')
         elif action == 'rt_verify':
-            # Delete old result so the service always runs fresh (no ConditionPathExists)
+            # Delete old result then stop any running instance before starting fresh
             run(f'rm -f {RT_RESULT}')
-            run('systemctl restart rt-verify')
-            msg = ('success', 'RT verification started — 3 phases (CPU2/EtherCAT, CPU3/CODESYS, SMP). Check back in ~3 minutes')
+            run('systemctl stop rt-verify 2>/dev/null || true', timeout=15)
+            run('systemctl reset-failed rt-verify 2>/dev/null || true')
+            # Start in background — oneshot takes ~3 min, don't wait
+            run('systemctl start rt-verify &', timeout=5)
+            msg = ('success', 'RT verification started — 3 phases (~3 min). Refresh this page when done.')
 
     mem_out, _ = run("free -m | awk 'NR==2{printf \"%s/%s MB\", $3, $2}'")
     disk_out, _ = run("df -h / | awk 'NR==2{printf \"%s/%s (%s)\", $3, $2, $5}'")

@@ -32,11 +32,9 @@ DEB="$1"
 [[ -f "$DEB" ]] || die "File not found: $DEB"
 
 # Verify ar magic bytes (!<arch>)
-read -r -n 8 magic < "$DEB" 2>/dev/null || true
-case "$(head -c 8 "$DEB" | cat)" in
-    '!<arch>'*) : ;;
-    *) die "Not a valid .deb file — expected ar archive magic '!<arch>'" ;;
-esac
+# BusyBox head has no -c (byte-count) flag — use dd instead.
+MAGIC=$(dd if="$DEB" bs=8 count=1 2>/dev/null)
+[[ "$MAGIC" == '!<arch>' ]] || die "Not a valid .deb file — expected ar archive magic '!<arch>'"
 
 log "Installing from: $DEB"
 log "Package size:    $(du -sh "$DEB" | cut -f1)"
@@ -96,14 +94,31 @@ tar xf "$DATA_TAR" -C /
 # ── Shared library cache ───────────────────────────────────────────────────────
 ldconfig 2>/dev/null || true
 
-# ── Verify the key binary is present ──────────────────────────────────────────
-[[ -x /opt/codesys/bin/codesyscontrol ]] || \
-    die "Installation failed: /opt/codesys/bin/codesyscontrol not found after extraction"
+# ── Locate installed binary (path varies by CODESYS version/package) ──────────
+# v3.x SL package  : /opt/codesys/bin/codesyscontrol
+# v4.x linuxarm64  : /opt/codesyscontrol/bin/codesyscontrol  OR  /usr/sbin/codesyscontrol
+CODESYS_BIN=$(find /opt /usr/sbin /usr/bin \
+    \( -name "codesyscontrol.bin" -o -name "codesyscontrol" \) \
+    -type f -perm /0111 2>/dev/null | head -1)
+
+if [[ -z "$CODESYS_BIN" ]]; then
+    log "Could not find codesyscontrol binary. Files extracted to /:"
+    # Show what was actually installed so the user can report the path
+    find /opt /usr/share/codesys* /usr/lib/codesys* \
+        -maxdepth 5 2>/dev/null | head -40 | sed 's/^/  /'
+    die "Installation failed: codesyscontrol binary not found — check paths above"
+fi
 
 log "CODESYS runtime installed successfully"
-log "  Runtime: /opt/codesys/bin/codesyscontrol"
-ls /opt/codesys/bin/   2>/dev/null || true
-ls /opt/codesys/gateway/ 2>/dev/null || true
+log "  Binary: $CODESYS_BIN"
+ls "$(dirname "$CODESYS_BIN")/" 2>/dev/null | sed 's/^/  /'
+
+# Update codesyscontrol.service ExecStart if it points to old path
+SVC=/etc/systemd/system/codesyscontrol.service
+if [[ -f "$SVC" ]] && ! grep -q "ExecStart=${CODESYS_BIN}" "$SVC"; then
+    sed -i "s|ExecStart=.*codesyscontrol|ExecStart=${CODESYS_BIN}|" "$SVC" 2>/dev/null || true
+    log "  Service ExecStart updated to: $CODESYS_BIN"
+fi
 
 # ── Run post-install RT configuration ─────────────────────────────────────────
 if [[ -x /usr/sbin/codesys-post-install.sh ]]; then

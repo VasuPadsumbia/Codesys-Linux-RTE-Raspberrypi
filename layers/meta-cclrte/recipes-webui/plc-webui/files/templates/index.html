@@ -40,8 +40,12 @@
       <div class="rt-result {% if rt.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
         <div class="rt-status">{{ rt.status }}</div>
         <div class="rt-metrics">
-          <span>Max: <strong>{{ rt.max_latency_us }} &#181;s</strong></span>
+          <span>Max: <strong>{{ rt.worst_max_us }} &#181;s</strong></span>
           <span>Threshold: {{ rt.threshold_us }} &#181;s</span>
+        </div>
+        <div class="rt-metrics" style="font-size:0.8rem;margin-top:0.3rem;opacity:0.8;">
+          <span>CPU2 (EtherCAT): {{ rt.cpu2_ethercat.max_us }} &#181;s</span>
+          <span>CPU3 (CODESYS): {{ rt.cpu3_codesys.max_us }} &#181;s</span>
         </div>
         <div class="rt-time">Verified: {{ rt.timestamp[:10] }}</div>
       </div>

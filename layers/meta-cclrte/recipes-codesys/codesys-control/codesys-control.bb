@@ -46,11 +46,13 @@ SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 do_install() {
     # ── Config ───────────────────────────────────────────────────────────────
+    # /etc/codesyscontrol/ — path the .deb package creates and codesyscontrol.bin reads
+    install -d ${D}${sysconfdir}/codesyscontrol
+    install -m 0644 ${WORKDIR}/CODESYSControl.cfg   ${D}${sysconfdir}/codesyscontrol/CODESYSControl.cfg
+    # /etc/codesys/ — used by our helper scripts (codesys-post-install.sh, codesys-setup.sh)
     install -d ${D}${sysconfdir}/codesys
     install -m 0644 ${WORKDIR}/CODESYSControl.cfg   ${D}${sysconfdir}/codesys/CODESYSControl.cfg
     install -m 0644 ${WORKDIR}/rt-override.conf     ${D}${sysconfdir}/codesys/rt-override.conf
-    # Also place at /etc/CODESYSControl.cfg — standard CODESYS lookup path
-    install -m 0644 ${WORKDIR}/CODESYSControl.cfg   ${D}${sysconfdir}/CODESYSControl.cfg
 
     # ── systemd units ────────────────────────────────────────────────────────
     install -d ${D}${systemd_system_unitdir}
@@ -95,8 +97,8 @@ do_install() {
 }
 
 FILES:${PN} += " \
+    ${sysconfdir}/codesyscontrol \
     ${sysconfdir}/codesys \
-    ${sysconfdir}/CODESYSControl.cfg \
     ${sysconfdir}/ld.so.conf.d/codesys.conf \
     ${systemd_system_unitdir}/codesyscontrol.service.d \
     ${systemd_system_unitdir}/codesys-ide-install.service \

@@ -7,13 +7,13 @@ set -euo pipefail
 log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CODESYS-SETUP: $*"; }
 
 # ── Check if binary is installed ─────────────────────────────────────────────
-if [[ ! -x /opt/codesys/bin/codesyscontrol ]]; then
-    log "CODESYS runtime binary not found at /opt/codesys/bin/codesyscontrol"
+if [[ ! -x /opt/codesys/bin/codesyscontrol.bin ]]; then
+    log "CODESYS runtime binary not found at /opt/codesys/bin/codesyscontrol.bin"
     log ""
     log "To install the CODESYS runtime:"
     log "  1. Obtain 'CODESYS Control for Linux SL' from https://store.codesys.com"
-    log "  2. Transfer the package to this device (SCP via wlan0 management IP)"
-    log "  3. Run: /usr/sbin/install-codesys-runtime.sh <path-to-package>"
+    log "  2. SCP the .deb to this device: scp *.deb root@192.168.2.100:/tmp/"
+    log "  3. Run: /usr/sbin/install-codesys-runtime.sh /tmp/<package>.deb"
     log ""
     log "The CODESYS service will not start until the runtime is installed."
     # Exit 0 — don't fail the boot process, just don't start
@@ -22,14 +22,18 @@ fi
 
 # ── Prepare directories ───────────────────────────────────────────────────────
 log "Preparing CODESYS directories"
-install -d /var/opt/codesys/PlcLogic
-install -d /var/opt/codesys/cfg
-install -d /var/log/codesys
-install -d /run/codesys
+mkdir -p /var/opt/codesys/PlcLogic
+mkdir -p /var/opt/codesys/cfg
+mkdir -p /var/log/codesys
+mkdir -p /run/codesys
 
-# ── Copy config if not already in runtime location ───────────────────────────
-if [[ ! -f /var/opt/codesys/cfg/CODESYSControl.cfg ]]; then
-    cp /etc/CODESYSControl.cfg /var/opt/codesys/cfg/
+# ── Ensure config exists at the path codesyscontrol.bin reads ────────────────
+# .bin reads /etc/codesyscontrol/CODESYSControl.cfg (set in ExecStart)
+# Restore from our backup if the .deb install overwrote it with defaults.
+if [[ ! -f /etc/codesyscontrol/CODESYSControl.cfg ]]; then
+    mkdir -p /etc/codesyscontrol
+    cp /etc/codesys/CODESYSControl.cfg /etc/codesyscontrol/CODESYSControl.cfg
+    log "Restored CODESYSControl.cfg to /etc/codesyscontrol/"
 fi
 
 # ── Update shared library cache ───────────────────────────────────────────────
