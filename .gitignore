@@ -38,10 +38,10 @@ config/site.conf
 
 *~
 .DS_Store
+.gitignore
 logs/
 
 # The cloned Yocto layers (obtain separately — see kas/)
-claude-implementation-plan/
 meta-openembedded/
 meta-raspberrypi/
 meta-realtime/
