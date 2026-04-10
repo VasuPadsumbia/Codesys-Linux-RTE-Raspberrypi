@@ -1,0 +1,46 @@
+#!/bin/bash
+# dpkg shim — CODESYS IDE compatibility on Yocto/OpenEmbedded
+#
+# The CODESYS IDE "Update Raspberry Pi" deploy wizard transfers the runtime
+# .deb via SFTP then runs `dpkg -i *.deb` over SSH.  Yocto has no dpkg.
+# This shim intercepts that call and routes it to install-codesys-runtime.sh
+# which extracts the .deb using Python3 (no dpkg/ar needed).
+#
+# Installed at /usr/bin/dpkg so the IDE's SSH commands work transparently.
+
+case "${1:-}" in
+    -i|--install)
+        shift
+        # Strip leading flags (e.g. dpkg -i --force-all *.deb)
+        while [[ "${1:-}" == -* ]]; do shift; done
+        [[ -n "${1:-}" ]] || { echo "dpkg: no package specified" >&2; exit 1; }
+        exec /usr/sbin/install-codesys-runtime.sh "$1"
+        ;;
+    --print-architecture)
+        echo "arm64"
+        ;;
+    --configure|-C)
+        # dpkg --configure -a — no-op, systemd handles service startup
+        exit 0
+        ;;
+    --status|-s)
+        # dpkg -s codesyscontrol — report as installed if binary exists
+        if [[ -x /opt/codesys/bin/codesyscontrol ]]; then
+            echo "Status: install ok installed"
+        else
+            echo "Status: unknown ok not-installed"
+            exit 1
+        fi
+        ;;
+    -l|--list)
+        # dpkg -l — return empty list
+        exit 0
+        ;;
+    --get-selections)
+        exit 0
+        ;;
+    *)
+        # Unknown dpkg subcommand — succeed silently
+        exit 0
+        ;;
+esac

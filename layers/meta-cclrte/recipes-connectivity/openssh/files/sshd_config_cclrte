@@ -21,3 +21,6 @@ PrintMotd no
 
 # Allow port forwarding (useful for CODESYS IDE tunnel over wlan0)
 AllowTcpForwarding yes
+
+# SFTP subsystem — required by CODESYS IDE file transfer and standard SCP clients
+Subsystem sftp /usr/libexec/sftp-server

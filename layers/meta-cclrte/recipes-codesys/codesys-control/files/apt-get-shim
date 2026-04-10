@@ -1,0 +1,5 @@
+#!/bin/bash
+# apt-get shim — CODESYS IDE compatibility on Yocto/OpenEmbedded
+# Some IDE versions run `apt-get install -f` or `apt-get update` after dpkg.
+# All operations succeed silently — opkg handles actual package management.
+exit 0
