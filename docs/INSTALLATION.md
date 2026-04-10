@@ -256,15 +256,22 @@ If `worst_max_us` >= 100, consider the Xenomai build.
 CODESYS Control for Linux SL is a **closed-license commercial product** that must be obtained separately.
 
 1. Go to [store.codesys.com](https://store.codesys.com)
-2. Purchase or evaluate "CODESYS Control for Linux SL"
+2. Purchase or evaluate "CODESYS Control for Linux SL" — download the `.deb` package
 
-**Install via CODESYS IDE (recommended):**
+> **Important:** The CODESYS IDE's built-in "Update Raspberry Pi" deploy wizard runs `dpkg -i` over SSH. This will **fail on Yocto** — there is no `dpkg` or `apt`. Use the manual script below.
 
-1. Open CODESYS Development System on your PC
-2. Go to **Tools → Update Raspberry Pi** (or the Linux SL installer wizard)
-3. Enter device IP: `192.168.2.100`, port `22`, user `root`
-4. The IDE transfers and installs the runtime to `/opt/codesys/` via SSH
-5. `codesys-post-install.sh` fires automatically, applies RT tuning, enables and starts the service
+**Manual install (required on Yocto):**
+
+```bash
+# From your PC — copy the .deb to the device
+scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
+
+# SSH in and run the install script
+ssh root@192.168.2.100
+/usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+```
+
+The install script extracts the `.deb` using `ar x` + `tar xf` (no dpkg needed), installs to `/opt/codesys/`, then calls `codesys-post-install.sh` which applies RT tuning (SCHED_FIFO 80, CPU3) and starts the service.
 
 **Verify installation:**
 

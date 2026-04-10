@@ -11,7 +11,7 @@
 #   5. Applies SCHED_FIFO + CPU affinity directly to the running process
 
 set -euo pipefail
-log() { echo "[$(date -Iseconds)] CODESYS-POST-INSTALL: $*" | tee -a /var/log/codesys/post-install.log; }
+log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CODESYS-POST-INSTALL: $*" | tee -a /var/log/codesys/post-install.log; }
 
 log "CODESYS runtime detected at /opt/codesys/bin/codesyscontrol"
 log "Applying RT configuration for PREEMPT_RT PLC environment"

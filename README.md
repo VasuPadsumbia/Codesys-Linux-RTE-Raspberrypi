@@ -122,11 +122,18 @@ ssh root@<wlan0-ip>        # via WiFi (check router DHCP table)
 
 CODESYS Control for Linux SL is a **closed-license commercial product** not included in this build.
 
-1. Obtain from [store.codesys.com](https://store.codesys.com) — "CODESYS Control for Linux SL"
-2. Open CODESYS IDE → **Tools → Update Raspberry Pi** (or Linux SL installer)
-3. Enter the device IP (`192.168.2.100`) and root credentials
-4. The IDE installs the runtime and gateway to `/opt/codesys/` via SSH
-5. `codesys-post-install.sh` fires automatically and applies RT tuning (CPU3, SCHED_FIFO 80)
+> **Note:** The CODESYS IDE's "Update Raspberry Pi" wizard uses `dpkg` internally and **will fail on Yocto** (no dpkg/apt). Use the manual script below.
+
+```bash
+# From your PC — obtain the .deb from store.codesys.com then:
+scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
+
+# On the RPi5:
+ssh root@192.168.2.100
+/usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+```
+
+The script extracts the `.deb` with `ar`/`tar` (no dpkg needed), installs to `/opt/codesys/`, and applies RT tuning automatically.
 
 ### 7. Connect CODESYS IDE
 

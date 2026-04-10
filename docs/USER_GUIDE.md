@@ -120,11 +120,20 @@ Shows `codesyscontrol.service` state: active/inactive/failed.
 
 ### Install Runtime
 
-If the CODESYS runtime has not been installed, the page shows installation instructions. Install via CODESYS IDE:
+If the CODESYS runtime has not been installed, the page shows installation instructions.
 
-1. **Tools → Update Raspberry Pi** (or Linux SL installer)
-2. Enter device IP `192.168.2.100`, port `22`, user `root`, password `cclrte`
-3. IDE installs runtime to `/opt/codesys/` via SSH and triggers post-install automatically
+> **The CODESYS IDE deploy wizard uses `dpkg` over SSH and will fail on Yocto.** Use the manual script instead:
+
+```bash
+# From your PC
+scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
+
+# On the RPi5
+ssh root@192.168.2.100
+/usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+```
+
+This extracts the `.deb` with `ar`/`tar` (no dpkg needed), installs to `/opt/codesys/`, and applies RT tuning automatically.
 
 ### Log Viewer
 

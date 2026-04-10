@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-log() { echo "[$(date -Iseconds)] CODESYS-SETUP: $*"; }
+log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CODESYS-SETUP: $*"; }
 
 # ── Check if binary is installed ─────────────────────────────────────────────
 if [[ ! -x /opt/codesys/bin/codesyscontrol ]]; then

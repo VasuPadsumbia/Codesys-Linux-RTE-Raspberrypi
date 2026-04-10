@@ -28,6 +28,7 @@ SRC_URI = " \
     file://codesys-ide-install.service \
     file://codesys-setup.sh \
     file://codesys-post-install.sh \
+    file://install-codesys-runtime.sh \
 "
 
 # Enable the path watcher — fires when IDE installs the runtime
@@ -61,8 +62,9 @@ do_install() {
 
     # ── Scripts ──────────────────────────────────────────────────────────────
     install -d ${D}${sbindir}
-    install -m 0755 ${WORKDIR}/codesys-setup.sh         ${D}${sbindir}/codesys-setup.sh
-    install -m 0755 ${WORKDIR}/codesys-post-install.sh  ${D}${sbindir}/codesys-post-install.sh
+    install -m 0755 ${WORKDIR}/codesys-setup.sh              ${D}${sbindir}/codesys-setup.sh
+    install -m 0755 ${WORKDIR}/codesys-post-install.sh       ${D}${sbindir}/codesys-post-install.sh
+    install -m 0755 ${WORKDIR}/install-codesys-runtime.sh    ${D}${sbindir}/install-codesys-runtime.sh
 
     # ── Pre-create runtime directories ───────────────────────────────────────
     install -d ${D}/opt/codesys/bin
@@ -88,7 +90,9 @@ FILES:${PN} += " \
     /var/log/codesys \
 "
 
-RDEPENDS:${PN} = "bash libstdc++ libgcc"
+# bash: setup/install scripts; libstdc++/libgcc: CODESYS runtime libs
+# binutils: provides ar(1) needed by install-codesys-runtime.sh to unpack .deb
+RDEPENDS:${PN} = "bash libstdc++ libgcc binutils"
 
 # RuntimeDirectory=codesys in service files causes Yocto to pre-create
 # /var/volatile/run/codesys — suppress the empty-dirs QA warning since

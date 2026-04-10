@@ -1,0 +1,48 @@
+# Build artifacts
+build/
+downloads/
+sstate-cache/
+tmp/
+
+# Build and test logs (keep directory, ignore log files)
+logs/*.log
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+.eggs/
+
+# CODESYS binary (closed-license — must be obtained separately)
+layers/meta-cclrte/recipes-codesys/codesys-control/files/CODESYSControl_*.deb
+layers/meta-cclrte/recipes-codesys/codesys-control/files/CODESYSControl_*.tar.gz
+
+# Xenomai meta-layer (obtain separately — see kas/rpi5-xenomai.yml)
+layers/meta-xenomai/
+
+# Site-specific config (contains WiFi passwords and SSH keys)
+config/site.conf
+
+# Yocto
+*.lock
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+.vscode/
+
+*~
+.DS_Store
+logs/
+
+# The cloned Yocto layers (obtain separately — see kas/)
+claude-implementation-plan/
+meta-openembedded/
+meta-raspberrypi/
+meta-realtime/
+poky/
