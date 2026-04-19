@@ -55,15 +55,16 @@ CODESYS Control for Linux SL must be linked against Xenomai's `libcobalt` to run
 CODESYS Control for Linux SL is a **closed-source commercial product** by CODESYS GmbH. It is governed by the CODESYS End-User License Agreement and is **not distributed with this project**.
 
 You must:
-1. Purchase or obtain an evaluation license from [store.codesys.com](https://store.codesys.com) — download the `.deb` package
-2. Deploy using the manual install script (the CODESYS IDE "Update Raspberry Pi" wizard uses `dpkg` and checks `/proc/cpuinfo` for ARMv7 — **both fail on Yocto arm64**):
+1. Purchase or obtain an evaluation license from [store.codesys.com](https://store.codesys.com) — download both the `.deb` (runtime binary) and `.ipk` (component libraries) packages
+2. Place **both files** in `data/` at the repo root before running `./cclrte.sh build`
 
 ```bash
-scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
-ssh root@192.168.2.100 /usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+ls data/
+# codesyscontrol_linuxarm64_4.20.0.0_arm64.deb
+# codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk
 ```
 
-The Yocto recipes in this project build the OS environment (config, service definitions, directory layout) but **the runtime binary is not present at build time**.
+The packages are bundled into the image and installed automatically on first boot via `codesys-firstboot.service`. The CODESYS IDE "Update Raspberry Pi" wizard uses `dpkg` and checks `/proc/cpuinfo` for ARMv7 — **both fail on Yocto arm64** — do not use it.
 
 ### Runtime License Activation
 

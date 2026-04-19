@@ -12,6 +12,7 @@ IMAGE_INSTALL:append = " \
     rt-setup \
     rt-verify \
     watchdog \
+    watchdog-config \
     codesys-control \
     igh-ethercat \
     open62541 \

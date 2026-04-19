@@ -21,7 +21,7 @@ from auth import login_required, check_credentials, set_password
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.environ.get('WEBUI_SECRET', 'cclrte-change-in-production')
 
-CODESYS_CFG  = '/etc/CODESYSControl.cfg'
+CODESYS_CFG  = '/etc/codesyscontrol/CODESYSControl.cfg'
 ETHERCAT_CFG = '/etc/ethercat.conf'
 NETWORK_DIR  = '/etc/systemd/network'
 WPA_CONF     = '/etc/wpa_supplicant/wpa_supplicant-wlan0.conf'
@@ -43,6 +43,34 @@ def service_status(name):
 def get_ip(iface):
     out, _ = run(f"ip -4 addr show {iface} | awk '/inet /{{print $2}}' | cut -d/ -f1")
     return out or '—'
+
+def get_scheduler_interval():
+    """Read SchedulerInterval (µs) from the live CODESYS config."""
+    try:
+        with open(CODESYS_CFG) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('SchedulerInterval='):
+                    return int(line.split('=', 1)[1])
+    except Exception:
+        pass
+    return None
+
+def set_scheduler_interval(value_us):
+    """Write SchedulerInterval to the live CODESYS config. Returns (ok, msg)."""
+    try:
+        with open(CODESYS_CFG) as f:
+            content = f.read()
+        import re
+        new_content = re.sub(r'^SchedulerInterval=\d+', f'SchedulerInterval={value_us}',
+                             content, flags=re.MULTILINE)
+        if new_content == content:
+            return False, 'SchedulerInterval key not found in config'
+        with open(CODESYS_CFG, 'w') as f:
+            f.write(new_content)
+        return True, f'SchedulerInterval set to {value_us} µs — restart CODESYS to apply'
+    except Exception as e:
+        return False, str(e)
 
 def read_rt_result():
     try:
@@ -145,6 +173,40 @@ def codesys_cpu():
         pid = out.split()[0]
         stat_out, _ = run(f"ps -p {pid} -o %cpu --no-headers")
         return float(stat_out.strip()) if stat_out.strip() else None
+    except Exception:
+        return None
+
+# State for live cycle time measurement (delta between successive API calls)
+_schedstat_last = {'timeslices': None, 'mono': None}
+
+def get_live_cycle_us():
+    """
+    Measure actual CODESYS scan cycle time using /proc/<pid>/schedstat field 3
+    (timeslices). Returns µs per cycle averaged since last call, or None.
+    """
+    global _schedstat_last
+    try:
+        out, rc = run("pgrep -x codesyscontrol")
+        if rc != 0 or not out:
+            _schedstat_last = {'timeslices': None, 'mono': None}
+            return None
+        pid = out.split()[0]
+        with open(f'/proc/{pid}/schedstat') as f:
+            parts = f.read().split()
+        timeslices = int(parts[2])
+        now = time.monotonic()
+
+        prev_ts = _schedstat_last['timeslices']
+        prev_t  = _schedstat_last['mono']
+        _schedstat_last = {'timeslices': timeslices, 'mono': now}
+
+        if prev_ts is None or prev_t is None:
+            return None
+        delta_ts = timeslices - prev_ts
+        delta_t  = now - prev_t
+        if delta_ts <= 0 or delta_t <= 0:
+            return None
+        return round((delta_t / delta_ts) * 1e6)
     except Exception:
         return None
 
@@ -282,20 +344,28 @@ def codesys():
         if action in ['start', 'stop', 'restart']:
             _, rc = run(f'systemctl {action} codesyscontrol')
             msg = ('success' if rc == 0 else 'error', f'CODESYS {action}')
-        elif action == 'install_check':
-            exists = os.path.exists('/opt/codesys/bin/codesyscontrol.bin')
-            msg = ('success' if exists else 'warning',
-                   'Runtime installed' if exists else 'Runtime not installed — run install-codesys-runtime.sh')
+        elif action == 'set_cycle_time':
+            try:
+                value_us = int(request.form.get('cycle_time_us', 0))
+                if value_us not in (250, 500, 1000, 2000, 4000):
+                    msg = ('error', 'Invalid cycle time — choose 250, 500, 1000, 2000 or 4000 µs')
+                else:
+                    ok, text = set_scheduler_interval(value_us)
+                    msg = ('success' if ok else 'error', text)
+            except ValueError:
+                msg = ('error', 'Invalid cycle time value')
 
-    cs_status  = service_status('codesyscontrol')
-    cs_log, _  = run('journalctl -u codesyscontrol -n 30 --no-pager 2>/dev/null || echo "No logs"')
-    rt_result  = read_rt_result()
-    installed  = os.path.exists('/opt/codesys/bin/codesyscontrol.bin')
-    eth0_ip    = get_ip('eth0')
+    cs_status          = service_status('codesyscontrol')
+    cs_log, _          = run('journalctl -u codesyscontrol -n 30 --no-pager 2>/dev/null || echo "No logs"')
+    rt_result          = read_rt_result()
+    installed          = os.path.exists('/opt/codesys/bin/codesyscontrol')
+    scheduler_interval = get_scheduler_interval()
+    eth0_ip            = get_ip('eth0')
 
     return render_template('codesys.html',
         msg=msg, cs_status=cs_status, cs_log=cs_log,
-        rt_result=rt_result, installed=installed, eth0_ip=eth0_ip)
+        rt_result=rt_result, installed=installed, eth0_ip=eth0_ip,
+        scheduler_interval=scheduler_interval)
 
 @app.route('/system', methods=['GET', 'POST'])
 @login_required
@@ -395,6 +465,13 @@ def api_load():
 def api_codesys_log():
     log_out, _ = run('journalctl -u codesyscontrol -n 50 --no-pager 2>/dev/null')
     return jsonify({'log': log_out})
+
+@app.route('/api/codesys/cycle')
+@login_required
+def api_codesys_cycle():
+    cycle_us = get_live_cycle_us()
+    hz = round(1_000_000 / cycle_us) if cycle_us and cycle_us > 0 else None
+    return jsonify({'cycle_us': cycle_us, 'hz': hz})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=False)

@@ -208,29 +208,32 @@ local-fs.target
 
 ## CODESYS Runtime Deployment
 
-CODESYS Control for Linux SL is a closed-license binary not bundled in the image. It is deployed after first boot using the manual install script (the CODESYS IDE "Update Raspberry Pi" wizard uses `dpkg` and reads `/proc/cpuinfo` for ARMv7 — both fail on Yocto arm64):
+CODESYS Control for Linux SL is a closed-license binary. The `.deb` and `.ipk` packages are placed in `data/` before the Yocto build and bundled into the image at `/opt/codesys-packages/`. On first boot, `codesys-firstboot.service` installs them automatically — no manual action required.
 
 ```
-From your PC:
-    scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
+Build time (host):
+    data/*.deb + data/*.ipk  →  bundled into image at /opt/codesys-packages/
 
-On the RPi5:
-    /usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
-            ├── Python3 parses .deb ar archive (no dpkg/ar binary needed)
-            ├── tar extracts runtime to /opt/codesys/
-            ├── ldconfig updates shared library cache
-            └── codesys-post-install.sh
-                    ├── Apply RT drop-in (CPU3, SCHED_FIFO 80)
-                    ├── Remove /etc/init.d/codesyscontrol (SysV conflict)
-                    ├── Enable codesyscontrol.service
-                    └── Start runtime
+First boot (RPi5):
+    codesys-firstboot.service  (ConditionPathExists=!/var/lib/cclrte/codesys-installed)
+            └── /usr/sbin/codesys-firstboot.sh
+                    ├── install-codesys-runtime.sh  *.deb  *.ipk
+                    │       ├── .deb: Python3 ar extraction → /opt/codesys/bin/codesyscontrol
+                    │       ├── .ipk: opkg install --nodeps (component libs)
+                    │       └── codesys-post-install.sh
+                    │               ├── Apply RT drop-in (CPU3, SCHED_FIFO 80)
+                    │               ├── Remove /etc/init.d/codesyscontrol (SysV conflict)
+                    │               ├── Enable + start codesyscontrol.service
+                    │               └── ldconfig
+                    └── creates stamp /var/lib/cclrte/codesys-installed
 ```
 
 The Yocto image pre-installs:
-- `/etc/codesyscontrol/CODESYSControl.cfg` — runtime config (SysCPUAffinity=0x08, OPC-UA port 4840)
+- `/etc/codesys/CODESYSControl.cfg` — RT config (SchedulerInterval=500, Logger disabled, SysCPUAffinity=0x08)
+- `/etc/codesys/CODESYSControl_User.cfg` — gateway + UserMgmt settings (UserMgmtEnabled=0)
 - `codesyscontrol.service.d/rt-override.conf` — SCHED_FIFO 80 + CPU3 + MEMLOCK=unlimited
-- `/opt/codesys/` directory structure
-- `/usr/sbin/install-codesys-runtime.sh` — Python3-based .deb extractor
+- `/opt/codesys-packages/` — bundled .deb + .ipk
+- `/usr/sbin/install-codesys-runtime.sh` — Python3-based extractor (no dpkg/ar needed)
 - `/usr/sbin/codesys-post-install.sh` — RT tuning and service activation
 
 ---

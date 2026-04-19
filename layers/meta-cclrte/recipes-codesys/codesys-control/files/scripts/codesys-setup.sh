@@ -7,8 +7,8 @@ set -euo pipefail
 log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CODESYS-SETUP: $*"; }
 
 # ── Check if binary is installed ─────────────────────────────────────────────
-if [[ ! -x /opt/codesys/bin/codesyscontrol.bin ]]; then
-    log "CODESYS runtime binary not found at /opt/codesys/bin/codesyscontrol.bin"
+if [[ ! -x /opt/codesys/bin/codesyscontrol ]]; then
+    log "CODESYS runtime binary not found at /opt/codesys/bin/codesyscontrol"
     log ""
     log "To install the CODESYS runtime:"
     log "  1. Obtain 'CODESYS Control for Linux SL' from https://store.codesys.com"
@@ -21,20 +21,27 @@ if [[ ! -x /opt/codesys/bin/codesyscontrol.bin ]]; then
 fi
 
 # ── Prepare directories ───────────────────────────────────────────────────────
+# /var/log is a symlink to /var/volatile/log on Yocto — must be created at runtime.
 log "Preparing CODESYS directories"
 mkdir -p /var/opt/codesys/PlcLogic
 mkdir -p /var/opt/codesys/cfg
-mkdir -p /var/log/codesys
 mkdir -p /run/codesys
+chmod 755 /run/codesys
+# Redirect CODESYS log to tmpfs — Logger.0.Path is ignored by the runtime;
+# a symlink in its working dir is the only way to get log writes off the SD card.
+ln -sf /run/codesys/codesyscontrol.log /var/opt/codesys/codesyscontrol.log 2>/dev/null || true
 
-# ── Ensure config exists at the path codesyscontrol.bin reads ────────────────
-# .bin reads /etc/codesyscontrol/CODESYSControl.cfg (set in ExecStart)
-# Restore from our backup if the .deb install overwrote it with defaults.
-if [[ ! -f /etc/codesyscontrol/CODESYSControl.cfg ]]; then
-    mkdir -p /etc/codesyscontrol
-    cp /etc/codesys/CODESYSControl.cfg /etc/codesyscontrol/CODESYSControl.cfg
-    log "Restored CODESYSControl.cfg to /etc/codesyscontrol/"
-fi
+
+# ── Apply our RT config — always overwrite from /etc/codesys/ (authoritative) ─
+# /etc/codesys/ is our backup; /etc/codesyscontrol/ is what the runtime reads.
+# Always overwrite: the .deb post-install or IDE reinstall can silently replace
+# /etc/codesyscontrol/CODESYSControl.cfg with defaults (SchedulerInterval=4000,
+# Logger.0.Enable=1) which cause 200-400 µs RT latency spikes on CPU3.
+mkdir -p /etc/codesyscontrol
+cp /etc/codesys/CODESYSControl.cfg /etc/codesyscontrol/CODESYSControl.cfg
+log "Applied CODESYSControl.cfg (SchedulerInterval=500, Logger disabled)"
+cp /etc/codesys/CODESYSControl_User.cfg /etc/codesyscontrol/CODESYSControl_User.cfg
+log "Applied CODESYSControl_User.cfg (UserMgmt disabled, RT settings)"
 
 # ── Update shared library cache ───────────────────────────────────────────────
 ldconfig

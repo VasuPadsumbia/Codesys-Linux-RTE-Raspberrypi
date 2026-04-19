@@ -18,7 +18,7 @@ LOG=/var/log/cclrte-rt.log
 mkdir -p "$(dirname "$LOG")"
 
 log() {
-    echo "[$(date -Iseconds)] CCLRTE-RT: $*" | tee -a "$LOG"
+    echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CCLRTE-RT: $*" | tee -a "$LOG"
 }
 
 log "Starting real-time system setup (PREEMPT_RT)"
@@ -37,7 +37,7 @@ done
 # master thread share the same CPU — reduces cross-CPU cache misses.
 ETHERCAT_IF=${ETHERCAT_IF:-eth1}
 log "Pinning ${ETHERCAT_IF} IRQ to CPU2"
-if ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -1); then
+if ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -n 1); then
     if [[ -n "$ETH_IRQ" ]]; then
         echo "4" > "/proc/irq/${ETH_IRQ}/smp_affinity" 2>/dev/null || true   # 0x4 = CPU2
         log "  ${ETHERCAT_IF} IRQ ${ETH_IRQ} pinned to CPU2"

@@ -54,7 +54,7 @@ done
 
 # ── 5. EtherCAT NIC IRQ → CPU2 ───────────────────────────────────────────────
 ETHERCAT_IF=${ETHERCAT_IF:-eth1}
-if ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -1); then
+if ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -n 1); then
     if [[ -n "$ETH_IRQ" ]]; then
         echo "4" > "/proc/irq/${ETH_IRQ}/smp_affinity" 2>/dev/null || true   # bitmask 0x4 = CPU2
         log "${ETHERCAT_IF} IRQ ${ETH_IRQ} pinned to CPU2"

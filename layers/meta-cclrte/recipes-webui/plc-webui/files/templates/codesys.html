@@ -34,6 +34,12 @@
       <div class="info-row"><span>Programming Port</span><code>{{ eth0_ip }}:1217</code></div>
       <div class="info-row"><span>CPU Affinity</span><code>CPU3 (isolated)</code></div>
       <div class="info-row"><span>Scheduling</span><code>SCHED_FIFO priority 80</code></div>
+      <div class="info-row"><span>Configured Cycle</span>
+        <code>{% if scheduler_interval %}{{ scheduler_interval }} µs ({{ (1000000 // scheduler_interval) }} Hz){% else %}unknown{% endif %}</code>
+      </div>
+      <div class="info-row"><span>Live Cycle Time</span>
+        <code id="live-cycle">measuring…</code>
+      </div>
       <div class="form-row" style="margin-top:1rem">
         {% for action in ['start', 'stop', 'restart'] %}
         <form method="POST" style="display:inline">
@@ -70,6 +76,38 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-header">PLC Cycle Time</div>
+    <div class="card-body">
+      <p class="info-muted" style="margin-bottom:0.75rem">
+        Sets <code>SchedulerInterval</code> in the runtime config.
+        Must match the fastest task cycle time in your CODESYS project.
+        <strong>Restart required to apply.</strong>
+      </p>
+      <form method="POST">
+        <input type="hidden" name="action" value="set_cycle_time">
+        <div class="form-row" style="align-items:center;gap:0.75rem">
+          <select name="cycle_time_us" class="form-control" style="width:auto">
+            {% for us, label in [(250,'250 µs — 4 kHz (Xenomai only)'),
+                                  (500,'500 µs — 2 kHz (PREEMPT_RT default)'),
+                                  (1000,'1000 µs — 1 kHz'),
+                                  (2000,'2000 µs — 500 Hz'),
+                                  (4000,'4000 µs — 250 Hz')] %}
+            <option value="{{ us }}" {% if scheduler_interval == us %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-secondary">Apply</button>
+        </div>
+      </form>
+      {% if msg and msg[0] == 'success' and 'SchedulerInterval' in msg[1] %}
+      <form method="POST" style="margin-top:0.75rem">
+        <input type="hidden" name="action" value="restart">
+        <button type="submit" class="btn btn-primary">Restart CODESYS now</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
   <div class="card card-full">
     <div class="card-header">
       CODESYS Service Log (last 30 lines)
@@ -88,6 +126,22 @@ function refreshLog() {
     document.getElementById('cs-log').textContent = d.log;
   });
 }
+
+function refreshCycle() {
+  fetch('/api/codesys/cycle').then(r => r.json()).then(d => {
+    const el = document.getElementById('live-cycle');
+    if (d.cycle_us) {
+      el.textContent = d.cycle_us + ' µs (' + d.hz + ' Hz)';
+    } else {
+      el.textContent = 'not running';
+    }
+  }).catch(() => {
+    document.getElementById('live-cycle').textContent = '—';
+  });
+}
+
 setInterval(refreshLog, 10000);
+setInterval(refreshCycle, 5000);
+refreshCycle();  // prime first sample; second call in 5s gives the first real delta
 </script>
 {% endblock %}

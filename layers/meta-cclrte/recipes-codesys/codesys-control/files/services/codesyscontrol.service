@@ -1,11 +1,12 @@
 [Unit]
 Description=CODESYS Control for Linux SL Runtime
 Documentation=https://store.codesys.com
-After=network.target rt-setup.service ethercat.service codesysgateway.service
-Wants=ethercat.service codesysgateway.service
+After=network.target rt-setup.service ethercat.service
+Wants=ethercat.service
 Requires=rt-setup.service
-# Do not start if binary is not yet installed by CODESYS IDE
-ConditionPathExists=/opt/codesys/bin/codesyscontrol.bin
+# Do not start if binary is not yet installed.
+# install-codesys-runtime.sh creates codesyscontrol symlink → codesyscontrol.bin
+ConditionPathExists=/opt/codesys/bin/codesyscontrol
 
 [Service]
 # codesyscontrol.bin does not self-daemonize — the init.d script runs it with &
@@ -17,7 +18,7 @@ RuntimeDirectoryMode=0755
 
 ExecStartPre=/usr/sbin/codesys-setup.sh
 # Config file is the first positional argument (no -d / -c flags)
-ExecStart=/opt/codesys/bin/codesyscontrol.bin /etc/codesyscontrol/CODESYSControl.cfg
+ExecStart=/opt/codesys/bin/codesyscontrol /etc/codesyscontrol/CODESYSControl.cfg
 EnvironmentFile=-/etc/default/codesyscontrol
 Environment=LD_LIBRARY_PATH=/opt/codesys/lib
 

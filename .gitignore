@@ -17,9 +17,11 @@ __pycache__/
 dist/
 .eggs/
 
-# CODESYS binary (closed-license — must be obtained separately)
-layers/meta-cclrte/recipes-codesys/codesys-control/files/CODESYSControl_*.deb
-layers/meta-cclrte/recipes-codesys/codesys-control/files/CODESYSControl_*.tar.gz
+# CODESYS closed-license runtime packages
+# Place these in data/ before building (not tracked in git — binary blobs)
+# Obtain from: CODESYS IDE → Help → Install CODESYS Control for Linux
+data/*.deb
+data/*.ipk
 
 # Xenomai meta-layer (obtain separately — see kas/rpi5-xenomai.yml)
 layers/meta-xenomai/

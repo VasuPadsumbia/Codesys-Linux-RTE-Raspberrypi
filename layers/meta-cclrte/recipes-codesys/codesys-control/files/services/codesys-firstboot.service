@@ -1,0 +1,19 @@
+[Unit]
+Description=Install CODESYS runtime from bundled packages (first boot)
+Documentation=https://store.codesys.com
+After=local-fs.target systemd-tmpfiles-setup.service network-firstboot.service rt-setup.service
+Wants=rt-setup.service
+# Skip if runtime already installed
+ConditionPathExists=!/var/lib/cclrte/codesys-installed
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/codesys-firstboot.sh
+StandardOutput=journal
+StandardError=journal
+# Allow enough time for extraction + opkg install
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

@@ -118,29 +118,27 @@ ssh root@<wlan0-ip>        # via WiFi (check router DHCP table)
 # Default password: cclrte
 ```
 
-### 6. Install CODESYS runtime
+### 6. CODESYS runtime (auto-installed on first boot)
 
-CODESYS Control for Linux SL is a **closed-license commercial product** not included in this build.
-
-> **Note:** The CODESYS IDE's "Update Raspberry Pi" wizard uses `dpkg` internally and **will fail on Yocto** (no dpkg/apt). Use the manual script below.
+CODESYS Control for Linux SL is a **closed-license commercial product**. Place both packages in `data/` **before** building:
 
 ```bash
-# From your PC — obtain the .deb from store.codesys.com then:
-scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
-
-# On the RPi5:
-ssh root@192.168.2.100
-/usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+ls data/
+# codesyscontrol_linuxarm64_4.20.0.0_arm64.deb   ← runtime binary
+# codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk   ← component libraries
+# Obtain from: CODESYS IDE → Help → Install CODESYS Control for Linux
+#           or from https://store.codesys.com
 ```
 
-The script parses the `.deb` ar archive using Python3 (no `ar`, `dpkg`, or `apt` needed), installs to `/opt/codesys/`, and applies RT tuning automatically.
+The packages are bundled into the image and installed automatically on first boot via `codesys-firstboot.service`. No manual step required after flashing.
 
 ### 7. Connect CODESYS IDE
 
-In CODESYS Development System (Windows/Linux):
-- **Tools → Communication → Add gateway**
-- Gateway IP: `192.168.2.100`, Port: `1217`
-- Runtime: CODESYS Control for Linux SL
+Once port 1217 is listening (`ss -tlnp | grep 1217`):
+
+1. **Online → Scan Network** — the `cclrte-plc` device appears automatically
+2. Double-click the device → **Login** (leave blank — UserMgmt disabled by default)
+3. **Online → Download** your PLC project
 
 ---
 
@@ -159,6 +157,11 @@ yocto-gateway-rt/
 │       │   ├── distro/        # cclrte distro config
 │       │   └── machine/       # rpi5-cclrte, rpi5-cclrte-xenomai
 │       └── recipes-*/         # All custom recipes
+│           └── recipes-codesys/codesys-control/files/
+│               ├── config/    # CODESYSControl.cfg, CODESYSControl_User.cfg, rt-override.conf
+│               ├── services/  # systemd units and .path files
+│               ├── scripts/   # shell scripts (install, setup, firstboot, post-install)
+│               └── shims/     # dpkg/apt-get shims for Yocto compatibility
 ├── config/
 │   └── site.conf.sample       # First-boot configuration template
 ├── docs/
@@ -186,6 +189,7 @@ yocto-gateway-rt/
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, CPU layout, RT stack, network topology  |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md)     | WebUI usage, CODESYS programming, day-to-day operation |
 | [docs/LIMITATIONS.md](docs/LIMITATIONS.md)   | Known constraints, licensing notes, PROFINET limits    |
+| [docs/REQUIREMENTS_AND_KNOWN_ISSUES.md](docs/REQUIREMENTS_AND_KNOWN_ISSUES.md) | Exact hardware/software versions, all real errors encountered and their confirmed fixes |
 
 ---
 

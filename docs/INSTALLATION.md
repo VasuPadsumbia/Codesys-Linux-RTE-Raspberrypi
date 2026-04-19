@@ -123,7 +123,25 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 4 (Xenomai only): Obtain Dovetail Kernel Patches
+### Step 4: Place CODESYS Runtime Packages in `data/`
+
+CODESYS Control for Linux SL is a closed-license commercial product. The runtime packages are **not included in the git repository** but must be placed in `data/` before building.
+
+```bash
+# Obtain from CODESYS IDE → Help → Install CODESYS Control for Linux
+# OR from https://store.codesys.com (CODESYS Control for Linux SL → Downloads)
+#
+# Place BOTH files in data/:
+ls data/
+# codesyscontrol_linuxarm64_4.20.0.0_arm64.deb   ← runtime binary
+# codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk   ← component libraries
+```
+
+> The build will fail with a clear error message if either file is missing.
+
+These packages are bundled into the image at `/opt/codesys-packages/` and installed automatically on first boot via `codesys-firstboot.service` — no manual installation step required.
+
+### Step 5 (Xenomai only): Obtain Dovetail Kernel Patches
 
 The Xenomai build requires Dovetail interrupt pipeline patches applied to the RPi5 kernel (6.6.y). This is a community effort and must be done manually:
 
@@ -254,48 +272,55 @@ A passing result:
 
 If `worst_max_us` >= 100, consider the Xenomai build.
 
-### Step 9: Install CODESYS Runtime
+### Step 9: CODESYS Runtime (Auto-installed on First Boot)
 
-CODESYS Control for Linux SL is a **closed-license commercial product** that must be obtained separately.
+If you placed the packages in `data/` before building (Step 4), CODESYS is **automatically installed on first boot** — no manual action required.
 
-1. Go to [store.codesys.com](https://store.codesys.com)
-2. Purchase or evaluate "CODESYS Control for Linux SL" — download the `.deb` package
+`codesys-firstboot.service` runs once and:
+1. Extracts and installs the `.deb` (runtime binary → `/opt/codesys/bin/codesyscontrol`)
+2. Installs the `.ipk` via opkg (component libraries + post-install scripts)
+3. Applies RT tuning (CPU3, SCHED_FIFO 80, `mlockall`)
+4. Enables and starts `codesyscontrol.service`
+5. Creates stamp `/var/lib/cclrte/codesys-installed`
 
-> **Important:** The CODESYS IDE's built-in "Update Raspberry Pi" deploy wizard runs `dpkg -i` over SSH. This will **fail on Yocto** — there is no `dpkg` or `apt`. Use the manual script below.
-
-**Manual install (required on Yocto):**
-
+Monitor installation:
 ```bash
-# From your PC — copy the .deb to the device
-scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
-
-# SSH in and run the install script
-ssh root@192.168.2.100
-/usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+journalctl -u codesys-firstboot -f
+# After completion:
+cat /var/log/codesys/firstboot.log
 ```
 
-The install script parses the `.deb` ar archive using **Python3** (no `ar`, `dpkg`, or `apt` needed), extracts the runtime to `/`, then calls `codesys-post-install.sh` which applies RT tuning (SCHED_FIFO 80, CPU3 affinity) and starts the service.
-
-**Verify installation:**
-
+**Verify:**
 ```bash
 systemctl status codesyscontrol
-ls /opt/codesys/bin/codesyscontrol.bin    # binary must exist
-journalctl -u codesyscontrol -n 20 --no-pager
-netstat -tlnp | grep 1217   # Gateway port (or: cat /proc/net/tcp)
-netstat -tlnp | grep 4840   # OPC-UA port
+ss -tlnp | grep 1217   # Gateway port (IDE connects here)
+```
+
+**Manual reinstall** (if firstboot failed or packages were updated):
+```bash
+rm /var/lib/cclrte/codesys-installed
+systemctl start codesys-firstboot
+# OR: copy new packages and run directly:
+/usr/sbin/install-codesys-runtime.sh /opt/codesys-packages/*.deb /opt/codesys-packages/*.ipk
 ```
 
 ### Step 10: Connect CODESYS IDE
 
+Verify the runtime is listening before connecting:
+
+```bash
+ss -tlnp | grep 1217   # must show LISTEN
+```
+
 In CODESYS Development System on your programming PC:
 
-1. Tools → Communication → Add gateway
-2. Gateway IP: `192.168.2.100`, Port: `1217`
-3. Double-click the gateway → select the runtime device
-4. Go online and download your PLC program
+1. **Online → Scan Network** — the `cclrte-plc` device appears automatically
+2. Double-click the device → click **Login** (leave username/password blank — User Management is disabled)
+3. **Online → Download** your PLC project
 
-> **Network:** Connect your programming PC to eth0 (or directly via crossover cable to 192.168.2.x/24).
+> **No login required:** `UserMgmtEnabled=0` is set in the device config. The IDE connects without credentials. Enable device User Management via CODESYS Security Screen for production deployments.
+
+> **Network:** Connect your programming PC to eth0 (set PC IP to 192.168.2.x/24, no gateway needed).
 
 ---
 
@@ -326,7 +351,12 @@ The WebUI provides:
 | No wlan0 connection | Check `WIFI_SSID`/`WIFI_PASSWORD` and `WIFI_COUNTRY` in `config/site.conf`; `journalctl -u wpa_supplicant@wlan0` |
 | eth0 not at 192.168.2.100 | Run `networkctl status eth0`; check `/etc/systemd/network/10-eth0.network` |
 | network-firstboot did not run | Check `journalctl -u network-firstboot`; verify `/boot/site.conf` exists |
-| codesyscontrol not starting | Check `ls /opt/codesys/bin/codesyscontrol.bin` — if missing, run `install-codesys-runtime.sh`; then `journalctl -u codesyscontrol -e` |
+| codesyscontrol not starting | Check `ls /opt/codesys/bin/codesyscontrol` — if missing, run `install-codesys-runtime.sh`; then `journalctl -u codesyscontrol -e` |
+| codesys-firstboot failed | `journalctl -u codesys-firstboot`; check `/var/log/codesys/firstboot.log`; re-run: `rm /var/lib/cclrte/codesys-installed && systemctl start codesys-firstboot` |
+| IDE scan finds no PLC | Verify `ss -tlnp \| grep 1217` shows LISTEN; check `systemctl status codesyscontrol` |
+| IDE login fails silently | Verify `/etc/codesyscontrol/CODESYSControl_User.cfg` has `[CmpUserMgmt]` (not `[CmpUserMgr]`) with `UserMgmtEnabled=0` |
+| IDE login fails "operation not supported" | Wipe PKI: `systemctl stop codesyscontrol && rm -rf /var/opt/codesys/PKI/ && systemctl start codesyscontrol`; use a new blank project |
+| RT latency on CPU3 > 100 µs | Verify `SchedulerInterval=500` in `CODESYSControl.cfg`; verify `Logger.0.Enable=0`; consider Xenomai build |
 | High RT latency (> 100 µs) | Verify `scaling_governor` = `performance`; check USB device interrupts; consider Xenomai build |
 | EtherCAT in ACTIVATING state | Set MAC address of USB-NIC via WebUI Protocols page or: `echo 'MASTER0_DEVICE="aa:bb:cc:dd:ee:ff"' > /etc/ethercat.conf` |
 | Build fails with layer error | Verify kas version >= 4.0; check Xenomai: Dovetail patches placed correctly |

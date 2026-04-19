@@ -120,20 +120,14 @@ Shows `codesyscontrol.service` state: active/inactive/failed.
 
 ### Install Runtime
 
-If the CODESYS runtime has not been installed, the page shows installation instructions.
+If the packages were placed in `data/` before building, CODESYS is **auto-installed on first boot** — no action required. The page shows runtime status and log output.
 
-> **The CODESYS IDE deploy wizard uses `dpkg` over SSH and will fail on Yocto.** Use the manual script instead:
-
+To reinstall manually (e.g. after a package update):
 ```bash
-# From your PC
-scp CODESYSControl_linux_SL_*.deb root@192.168.2.100:/tmp/
-
-# On the RPi5
-ssh root@192.168.2.100
-/usr/sbin/install-codesys-runtime.sh /tmp/CODESYSControl_linux_SL_*.deb
+rm /var/lib/cclrte/codesys-installed
+systemctl start codesys-firstboot
+journalctl -u codesys-firstboot -f
 ```
-
-This extracts the `.deb` with `ar`/`tar` (no dpkg needed), installs to `/opt/codesys/`, and applies RT tuning automatically.
 
 ### Log Viewer
 
@@ -169,12 +163,17 @@ CODESYS and EtherCAT do **not** need to be running — the test measures kernel 
 
 ### Connecting to the Runtime
 
+Verify the runtime is listening before connecting:
+```bash
+ss -tlnp | grep 1217   # must show LISTEN — check codesys-firstboot if empty
+```
+
 1. Open CODESYS Development System (Windows or Linux)
-2. **Tools → Communication → Add gateway**
-   - IP: `192.168.2.100`
-   - Port: `1217`
-3. Double-click the gateway → the runtime device appears
-4. Right-click device → **Set active path**
+2. **Online → Scan Network** — the `cclrte-plc` device appears automatically
+3. Double-click the device → click **Login** (leave username/password blank — UserMgmt is disabled)
+4. **Online → Download** your project
+
+> **No login required by default:** `UserMgmtEnabled=0` is set in `CODESYSControl_User.cfg`. If asked for credentials, click OK with empty fields. If login fails silently, see the troubleshooting section in [INSTALLATION.md](INSTALLATION.md).
 
 ### Project Structure (Recommended)
 
@@ -218,7 +217,7 @@ If using CODESYS SoftMotion:
 
 ```bash
 # View last cyclictest result
-cat /var/log/cclrte-rt-result.txt
+cat /var/log/cclrte-rt-result.txt   # RT latency result
 
 # Run a fresh latency test manually (~3 min, 3 phases)
 /usr/sbin/run-cyclictest.sh
@@ -263,8 +262,8 @@ cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 
 # CODESYS CPU affinity and priority
 ps -eo pid,comm,cls,pri,psr | grep codesys
-chrt -p $(pgrep -x codesyscontrol.bin 2>/dev/null || pgrep codesyscontrol)
-taskset -p $(pgrep -x codesyscontrol.bin 2>/dev/null || pgrep codesyscontrol)
+chrt -p $(pgrep -x codesyscontrol)
+taskset -p $(pgrep -x codesyscontrol)
 
 # EtherCAT master threads
 ps -eo pid,comm,cls,pri,psr | grep ec_
@@ -343,4 +342,4 @@ If the system locks up or `codesyscontrol` hangs the kernel:
 - The system reboots automatically
 - `codesyscontrol.service` restarts and resumes the last downloaded PLC program
 
-The systemd service uses `Restart=on-failure` so if `codesyscontrol.bin` exits unexpectedly it is restarted automatically after 5 seconds.
+The systemd service uses `Restart=on-failure` so if `codesyscontrol` exits unexpectedly it is restarted automatically after 5 seconds.

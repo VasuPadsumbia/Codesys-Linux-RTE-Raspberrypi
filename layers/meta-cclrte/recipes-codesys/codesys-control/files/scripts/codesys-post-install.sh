@@ -1,20 +1,30 @@
 #!/bin/bash
-# codesys-post-install.sh
-# Triggered automatically by codesys-ide-install.path when the CODESYS IDE
-# deploys the runtime binary to /opt/codesys/bin/codesyscontrol via SSH.
+# codesys-post-install.sh — CODESYS RT configuration and service startup
+# Author: Vasu Padsumbia
 #
-# What this does:
-#   1. Installs the RT drop-in override (persists IDE reinstalls)
-#   2. Ensures CODESYSControl.cfg is present with RT settings
-#   3. Ensures required directories exist
-#   4. Reloads systemd and enables/starts codesyscontrol + codesysgateway
-#   5. Applies SCHED_FIFO + CPU affinity directly to the running process
+# Run this after CODESYS Control for Linux SL is installed (by any method).
+# Safe to run multiple times — all operations are idempotent.
+#
+# USAGE:
+#   /usr/sbin/codesys-post-install.sh
+#
+# CALLED BY:
+#   - install-codesys-runtime.sh  (manual install via SSH)
+#   - codesys-ide-install.service (automatically when CODESYS IDE deploys via SSH)
+#
+# WHAT THIS DOES:
+#   1. Installs the RT drop-in override (CPU3, SCHED_FIFO 80) — persists IDE reinstalls
+#   2. Ensures CODESYSControl.cfg + User.cfg (UserMgmt disabled) are in place
+#   3. Ensures required runtime directories exist
+#   4. Removes SysV init.d script that conflicts with our systemd unit
+#   5. Reloads systemd and enables/starts codesyscontrol + codesysgateway
+#   6. Applies SCHED_FIFO 80 + CPU3 affinity to the running process directly
 
 set -euo pipefail
 mkdir -p /var/log/codesys
 log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] CODESYS-POST-INSTALL: $*" | tee -a /var/log/codesys/post-install.log; }
 
-log "CODESYS runtime detected at /opt/codesys/bin/codesyscontrol.bin"
+log "CODESYS runtime detected — applying RT configuration"
 log "Applying RT configuration for PREEMPT_RT PLC environment"
 
 # ── 1. RT drop-in override ─────────────────────────────────────────────────────
@@ -25,19 +35,38 @@ if [[ ! -f "$DROPIN_DIR/rt-override.conf" ]]; then
     log "Installed RT drop-in override: $DROPIN_DIR/rt-override.conf"
 fi
 
-# ── 2. Ensure CODESYSControl.cfg has RT settings ──────────────────────────────
-if [[ ! -f /etc/codesyscontrol/CODESYSControl.cfg ]]; then
-    log "CODESYSControl.cfg missing — restoring from /etc/codesys/"
-    mkdir -p /etc/codesyscontrol
-    cp /etc/codesys/CODESYSControl.cfg /etc/codesyscontrol/CODESYSControl.cfg
+# ── 2. Ensure CODESYSControl_User.cfg has our RT + gateway settings ──────────
+# The IDE wizard regenerates CODESYSControl.cfg but does NOT touch the User cfg.
+# We always (re)write the User cfg so gateway and RT settings survive reinstalls.
+mkdir -p /etc/codesyscontrol
+cp /etc/codesys/CODESYSControl_User.cfg /etc/codesyscontrol/CODESYSControl_User.cfg
+log "Applied RT + gateway settings to CODESYSControl_User.cfg"
+
+# If the main config doesn't reference the User file, add the reference.
+# (The wizard always includes it in its generated config, so this is a safety net.)
+if ! grep -q "CODESYSControl_User.cfg" /etc/codesyscontrol/CODESYSControl.cfg 2>/dev/null; then
+    echo "" >> /etc/codesyscontrol/CODESYSControl.cfg
+    echo "[CmpSettings]" >> /etc/codesyscontrol/CODESYSControl.cfg
+    echo "FileReference.1=/etc/codesyscontrol/CODESYSControl_User.cfg" >> \
+        /etc/codesyscontrol/CODESYSControl.cfg
+    log "Added FileReference to CODESYSControl.cfg → CODESYSControl_User.cfg"
 fi
 
 # ── 3. Runtime directories ────────────────────────────────────────────────────
 mkdir -p /opt/codesys/lib
 mkdir -p /var/opt/codesys/PlcLogic
 mkdir -p /var/opt/codesys/cfg
-mkdir -p /var/log/codesys
 mkdir -p /run/codesys
+
+# ── CmpRetain — register dynamic component via ComponentManager ───────────────
+# CmpRetain (retain variable persistence) is a dynamic shared lib not
+# auto-discovered by CODESYS. cfg_add_cmp.sh adds it to [ComponentManager]
+# in the User.cfg — same mechanism the .ipk post-install uses.
+if [[ -f /opt/codesys/lib/libCmpRetain.so && -f /opt/codesys/scripts/cfg_add_cmp.sh ]]; then
+    /opt/codesys/scripts/cfg_add_cmp.sh \
+        /etc/codesyscontrol/CODESYSControl_User.cfg CmpRetain
+    log "Registered CmpRetain in [ComponentManager]"
+fi
 
 # Shared library path for CODESYS runtime libs
 if [[ ! -f /etc/ld.so.conf.d/codesys.conf ]]; then
@@ -74,7 +103,7 @@ systemctl start codesyscontrol.service || log "Runtime start failed — check jo
 # systemd CPUAffinity/CPUSchedulingPolicy apply at start, but enforce here too
 # in case process forks and systemd loses track
 sleep 2
-PID=$(pgrep -x codesyscontrol.bin 2>/dev/null || pgrep -x codesyscontrol 2>/dev/null || true)
+PID=$(pgrep -x codesyscontrol 2>/dev/null || true)
 if [[ -n "$PID" ]]; then
     log "Applying SCHED_FIFO 80 + CPU3 affinity to PID $PID"
     chrt -f -p 80 "$PID"    2>/dev/null || true
