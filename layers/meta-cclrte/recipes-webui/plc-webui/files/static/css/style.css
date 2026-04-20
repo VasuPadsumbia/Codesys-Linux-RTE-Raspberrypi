@@ -113,6 +113,42 @@ code, pre { font-family: var(--mono); font-size: 13px; background: rgba(255,255,
   .navbar { padding: 0 1rem; }
 }
 
+/* Modal */
+.modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; }
+.modal-backdrop.open { display:flex; }
+.modal-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); width:100%; max-width:620px; max-height:90vh; overflow-y:auto; padding:1.5rem; }
+.modal-box h3 { font-size:16px; font-weight:600; margin-bottom:1rem; }
+.modal-box .modal-actions { display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1.25rem; }
+.sync-option { border:1px solid var(--border); border-radius:var(--radius); padding:0.9rem 1rem; margin-bottom:0.75rem; cursor:pointer; transition:border-color 0.15s; }
+.sync-option:hover { border-color:var(--primary); }
+.sync-option.selected { border-color:var(--primary); background:rgba(59,130,246,0.06); }
+.sync-option input[type=radio] { display:none; }
+.opt-title { font-weight:600; font-size:14px; margin-bottom:2px; }
+.opt-accuracy { font-size:11px; font-weight:600; color:var(--success); margin-bottom:6px; }
+.opt-desc { font-size:12px; color:var(--text); margin-bottom:6px; }
+.opt-host { font-size:11px; color:var(--muted); margin-bottom:6px; }
+.opt-host code { display:block; margin-top:4px; padding:6px 8px; white-space:pre-wrap; word-break:break-all; font-size:10.5px; }
+.opt-note { font-size:11px; color:var(--warning); margin-top:4px; }
+.opt-extra { margin-top:8px; display:none; }
+.sync-option.selected .opt-extra { display:block; }
+.opt-extra label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+.opt-extra input { width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text); border-radius:var(--radius); padding:0.4rem 0.6rem; font-size:13px; outline:none; }
+.opt-extra input:focus { border-color:var(--primary); }
+
+/* Time Sync page */
+.ts-grid { display:grid; gap:1rem; grid-template-columns:1fr; }
+.ts-card { display:flex; gap:1rem; background:var(--surface); border:2px solid var(--border); border-radius:var(--radius); padding:1.25rem; cursor:pointer; transition:border-color 0.15s; }
+.ts-card:hover { border-color:var(--primary); }
+.ts-card.ts-active { border-color:var(--primary); background:rgba(59,130,246,0.06); }
+.ts-letter { font-size:2rem; font-weight:700; color:var(--primary); min-width:2.5rem; line-height:1; padding-top:0.2rem; }
+.ts-body { flex:1; }
+.ts-name { font-size:15px; font-weight:600; margin-bottom:2px; }
+.ts-accuracy { font-size:11px; font-weight:600; color:var(--success); margin-bottom:0.5rem; }
+.ts-desc { font-size:13px; color:var(--muted); margin-bottom:0.6rem; }
+.ts-host { font-size:12px; color:var(--text); margin-bottom:0.75rem; }
+.ts-host pre { background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:3px; padding:6px 8px; margin-top:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; font-family:var(--mono); }
+.ts-btn { margin-top:0.25rem; }
+
 /* PLC Load bars */
 .load-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 .load-role  { color: var(--primary); font-size: 10px; }

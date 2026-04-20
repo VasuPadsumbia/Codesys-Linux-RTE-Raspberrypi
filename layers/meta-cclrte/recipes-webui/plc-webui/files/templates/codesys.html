@@ -14,11 +14,10 @@
 
 {% if not installed %}
 <div class="alert alert-warning">
-  <strong>CODESYS runtime not installed.</strong>
-  Transfer the package to this device and run:<br>
-  <code>/usr/sbin/install-codesys-runtime.sh /path/to/CODESYSControl_*.deb</code><br>
-  Obtain from: <a href="https://store.codesys.com" target="_blank">store.codesys.com</a>
-  &#8594; "CODESYS Control for Linux SL" (ARM64)
+  <strong>CODESYS runtime not yet installed.</strong><br>
+  The bundled packages are at <code>/opt/codesys-packages/</code> — install runs automatically on first boot via <code>codesys-firstboot.service</code>.<br>
+  To trigger manually: <code>systemctl start codesys-firstboot</code><br>
+  To check status: <code>journalctl -u codesys-firstboot -n 40</code>
 </div>
 {% endif %}
 

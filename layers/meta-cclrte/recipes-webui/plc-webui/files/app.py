@@ -7,6 +7,7 @@ Provides: Dashboard, Network config, Protocol config, CODESYS management, System
 """
 
 import os
+import re
 import json
 import time
 import subprocess
@@ -40,6 +41,17 @@ def service_status(name):
     out, rc = run(f'systemctl is-active {name}')
     return out.strip()
 
+def codesys_status():
+    """Return CODESYS status — checks both systemd AND process so IDE-started runtimes show correctly."""
+    svc = service_status('codesyscontrol')
+    if svc == 'active':
+        return 'active'
+    # Fallback: check if the process is running even if systemd tracking is off
+    pid_out, rc = run('pgrep -x codesyscontrol 2>/dev/null || pgrep -x codesysruntime 2>/dev/null')
+    if rc == 0 and pid_out.strip():
+        return 'active'
+    return svc or 'inactive'
+
 def get_ip(iface):
     out, _ = run(f"ip -4 addr show {iface} | awk '/inet /{{print $2}}' | cut -d/ -f1")
     return out or '—'
@@ -61,7 +73,6 @@ def set_scheduler_interval(value_us):
     try:
         with open(CODESYS_CFG) as f:
             content = f.read()
-        import re
         new_content = re.sub(r'^SchedulerInterval=\d+', f'SchedulerInterval={value_us}',
                              content, flags=re.MULTILINE)
         if new_content == content:
@@ -154,6 +165,74 @@ def mem_info():
     except Exception:
         return {}
 
+# ── NTP mode persistence ──────────────────────────────────────────────────────
+NTP_MODE_FILE = '/var/lib/cclrte/ntp-mode.json'
+
+def _ntp_mode_labels():
+    return {
+        'a': 'Internet NTP (~5–20 ms)',
+        'b': 'Engineering PC NTP (<1 ms)',
+        'c': 'PTP IEEE 1588 (<1 µs)',
+    }
+
+def read_ntp_mode():
+    try:
+        with open(NTP_MODE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {'mode': 'a', 'pc_ip': ''}
+
+def write_ntp_mode(mode, pc_ip='', timezone='UTC'):
+    os.makedirs(os.path.dirname(NTP_MODE_FILE), exist_ok=True)
+    with open(NTP_MODE_FILE, 'w') as f:
+        json.dump({'mode': mode, 'pc_ip': pc_ip, 'timezone': timezone}, f)
+
+def http_time_offset_s():
+    """Return offset (local - real) in seconds by checking HTTP Date header.
+    Returns None if no internet or request fails."""
+    import urllib.request, email.utils
+    try:
+        with urllib.request.urlopen('http://google.com', timeout=4) as r:
+            date_str = r.headers.get('Date', '')
+            if not date_str:
+                return None
+            ref = email.utils.parsedate_to_datetime(date_str)
+            local_utc = datetime.utcnow().replace(tzinfo=ref.tzinfo)
+            return (local_utc - ref).total_seconds()
+    except Exception:
+        return None
+
+def clock_info():
+    """Return Pi clock: ISO timestamp, NTP sync state."""
+    now = datetime.now()
+    svc_out, svc_rc = run('systemctl is-active chronyd 2>/dev/null')
+    ntp_running = svc_rc == 0 and svc_out.strip() == 'active'
+    offset_ms = None
+    ntp_synced = False
+    if ntp_running:
+        # Primary: chronyc tracking (available once chronyc package is installed)
+        ctl_out, ctl_rc = run('chronyc tracking 2>/dev/null')
+        if ctl_rc == 0 and ctl_out:
+            ntp_synced = 'Reference ID' in ctl_out and '7F7F0101' not in ctl_out
+            m = re.search(r'System time\s*:\s*([\d.]+)\s*seconds', ctl_out)
+            if m:
+                offset_ms = round(float(m.group(1)) * 1000, 2)
+        else:
+            # Fallback: compare local clock against HTTP Date header
+            off = http_time_offset_s()
+            if off is not None:
+                ntp_synced = abs(off) < 5.0   # within 5 s = acceptable
+                offset_ms  = round(off * 1000, 1)
+            # No chronyc and no internet → unknown, report not synced
+    ntp_cfg = read_ntp_mode()
+    return {
+        'iso':               now.strftime('%Y-%m-%dT%H:%M:%S'),
+        'display':           now.strftime('%Y-%m-%d %H:%M:%S'),
+        'ntp_synced':        ntp_synced,
+        'offset_ms':         offset_ms,
+        'sync_method_label': _ntp_mode_labels().get(ntp_cfg['mode'], 'Internet NTP'),
+    }
+
 def net_stats(iface):
     """Return rx_bytes and tx_bytes for an interface."""
     try:
@@ -216,7 +295,7 @@ def get_live_cycle_us():
 @login_required
 def index():
     status = {
-        'codesys':   service_status('codesyscontrol'),
+        'codesys':   codesys_status(),
         'ethercat':  service_status('ethercat'),
         'webui':     'active',
         'mosquitto': service_status('mosquitto'),
@@ -229,11 +308,13 @@ def index():
     up       = uptime()
     kernel, _ = run('uname -r')
     rt_mode  = 'XENOMAI' if 'xenomai' in kernel.lower() else 'PREEMPT_RT'
+    clk      = clock_info()
     return render_template('index.html',
         status=status, rt=rt,
         eth0_ip=eth0_ip, wlan_ip=wlan_ip,
         temp=temp, uptime=up,
-        platform=hw_platform(), rt_mode=rt_mode)
+        platform=hw_platform(), rt_mode=rt_mode,
+        clock=clk)
 
 @app.route('/network', methods=['GET', 'POST'])
 @login_required
@@ -355,10 +436,11 @@ def codesys():
             except ValueError:
                 msg = ('error', 'Invalid cycle time value')
 
-    cs_status          = service_status('codesyscontrol')
+    cs_status          = codesys_status()
     cs_log, _          = run('journalctl -u codesyscontrol -n 30 --no-pager 2>/dev/null || echo "No logs"')
     rt_result          = read_rt_result()
-    installed          = os.path.exists('/opt/codesys/bin/codesyscontrol')
+    installed          = (os.path.exists('/opt/codesys/bin/codesyscontrol') or
+                          os.path.exists('/var/lib/cclrte/codesys-installed'))
     scheduler_interval = get_scheduler_interval()
     eth0_ip            = get_ip('eth0')
 
@@ -426,14 +508,15 @@ def logout():
 @login_required
 def api_status():
     return jsonify({
-        'codesys':  service_status('codesyscontrol'),
-        'ethercat': service_status('ethercat'),
+        'codesys':   codesys_status(),
+        'ethercat':  service_status('ethercat'),
         'mosquitto': service_status('mosquitto'),
-        'eth0_ip':  get_ip('eth0'),
-        'wlan_ip':  get_ip('wlan0'),
-        'temp_c':   cpu_temp(),
-        'uptime':   uptime(),
-        'rt':       read_rt_result(),
+        'eth0_ip':   get_ip('eth0'),
+        'wlan_ip':   get_ip('wlan0'),
+        'temp_c':    cpu_temp(),
+        'uptime':    uptime(),
+        'rt':        read_rt_result(),
+        'clock':     clock_info(),
         'timestamp': datetime.now().isoformat(),
     })
 
@@ -459,6 +542,87 @@ def api_load():
         'temp_c':  cpu_temp(),
         'timestamp': datetime.now().isoformat(),
     })
+
+@app.route('/timesync', methods=['GET', 'POST'])
+@login_required
+def timesync():
+    ntp_cfg = read_ntp_mode()
+    if request.method == 'POST':
+        mode     = request.form.get('mode', 'a')
+        pc_ip    = request.form.get('pc_ip', '').strip()
+        timezone = request.form.get('timezone', 'UTC').strip()
+        write_ntp_mode(mode, pc_ip, timezone)
+        run(f'timedatectl set-timezone {timezone} 2>/dev/null')
+        return redirect(url_for('index'))
+    try:
+        cur_tz = open('/etc/localtime').read(0) or ''  # just trigger OSError if missing
+        import subprocess as _sp
+        cur_tz = _sp.check_output(['readlink', '-f', '/etc/localtime'],
+                                   text=True).strip().split('zoneinfo/')[-1]
+    except Exception:
+        cur_tz = ntp_cfg.get('timezone', 'UTC')
+    return render_template('timesync.html',
+        current_mode=ntp_cfg['mode'],
+        saved_pc_ip=ntp_cfg.get('pc_ip', ''),
+        current_tz=cur_tz)
+
+@app.route('/api/clock')
+@login_required
+def api_clock():
+    return jsonify(clock_info())
+
+@app.route('/api/clock/sync', methods=['POST'])
+@login_required
+def api_clock_sync():
+    ntp_cfg = read_ntp_mode()
+    mode    = ntp_cfg['mode']
+    pc_ip   = ntp_cfg.get('pc_ip', '')
+
+    def _ensure_chronyd():
+        svc_out, svc_rc = run('systemctl is-active chronyd 2>/dev/null')
+        if svc_rc != 0 or svc_out.strip() != 'active':
+            run('systemctl start chronyd')
+            time.sleep(2)
+
+    def _burst_and_step():
+        run('chronyc burst 4/4 2>/dev/null')
+        time.sleep(5)
+        run('chronyc makestep 2>/dev/null')
+
+    if mode == 'b' and pc_ip:
+        conf = '/etc/chrony/conf.d/20-local-pc.conf'
+        try:
+            with open(conf, 'w') as f:
+                f.write('# Engineering PC — local NTP master over eth0\n')
+                f.write(f'server {pc_ip} iburst prefer minpoll 4 maxpoll 6\n')
+        except OSError as e:
+            return jsonify({'ntp_synced': False, 'message': f'Could not write config: {e}'})
+        run('systemctl restart chronyd')
+        time.sleep(3)
+        _burst_and_step()
+        info = clock_info()
+        info['message'] = f'Synced to PC {pc_ip}' if info['ntp_synced'] else \
+            f'Sync to PC {pc_ip} in progress — check again in 30 s'
+        return jsonify(info)
+
+    if mode == 'c':
+        info = clock_info()
+        info['message'] = 'PTP mode — ensure grandmaster is active on your network'
+        return jsonify(info)
+
+    # Mode A — internet NTP
+    _ensure_chronyd()
+    _burst_and_step()
+    info = clock_info()
+    if info['ntp_synced']:
+        info['message'] = 'Clock synced' + (f' — offset {info["offset_ms"]} ms' if info['offset_ms'] is not None else '')
+    else:
+        off = http_time_offset_s()
+        if off is None:
+            info['message'] = 'Sync failed — no internet route (check WiFi / routing)'
+        else:
+            info['message'] = f'Sync in progress — current offset {round(off*1000)} ms, check again in 30 s'
+    return jsonify(info)
 
 @app.route('/api/codesys/log')
 @login_required

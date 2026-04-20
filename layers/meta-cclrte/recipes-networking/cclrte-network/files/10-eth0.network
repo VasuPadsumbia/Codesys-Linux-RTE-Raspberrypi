@@ -8,9 +8,10 @@ Name=eth0
 
 [Network]
 Address=192.168.2.100/24
-Gateway=192.168.2.1
 DNS=8.8.8.8
 Description=CODESYS Programming Port
+# No Gateway — eth0 is a point-to-point CODESYS link, not the internet uplink.
+# Default route comes from wlan0 DHCP (metric 20).
 
 [Link]
 # Disable power management on CODESYS port — latency critical

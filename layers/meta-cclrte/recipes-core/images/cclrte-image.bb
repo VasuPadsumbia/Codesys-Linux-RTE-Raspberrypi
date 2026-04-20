@@ -33,6 +33,10 @@ IMAGE_INSTALL:append = " \
     htop \
     nano \
     openssh-sftp-server \
+    chrony \
+    chronyc \
+    cclrte-timesyncd \
+    tzdata \
 "
 
 # Exclude packages pulled in as weak/recommended dependencies that are

@@ -258,24 +258,37 @@ Usage: ./cclrte.sh clean [recipes|build|sstate|downloads|all] [target]
 # ── Load to SD card ────────────────────────────────────────────────────────────
 cmd_load() {
     local device="${1:-}"
-    local target="${2:-preempt-rt}"
-    local force="${3:-}"
+    local target="preempt-rt"
+    local force=""
+
+    # Parse remaining args — target is the first non-flag arg; --force can appear anywhere
+    shift || true
+    for arg in "$@"; do
+        case "$arg" in
+            --force) force="--force" ;;
+            preempt-rt|xenomai|qemu) target="$arg" ;;
+            *) die "Unknown argument: $arg" ;;
+        esac
+    done
 
     [[ -z "$device" ]] && die "Usage: ./cclrte.sh load <device> [preempt-rt|xenomai] [--force]
+  Example: ./cclrte.sh load /dev/sdb
   Example: ./cclrte.sh load /dev/sdb preempt-rt
-  Example: ./cclrte.sh load /dev/sdb xenomai"
+  Example: ./cclrte.sh load /dev/sdb xenomai
+  Example: ./cclrte.sh load /dev/sda preempt-rt --force"
+
+    [[ "$target" == "qemu" ]] && die "QEMU images run in a VM and cannot be flashed to an SD card.
+  To run QEMU: ./cclrte.sh qemu"
 
     # Locate image based on build target
     local image_file
     case "$target" in
         preempt-rt)
             image_file=$(find "${BUILD_DIR}/tmp/deploy/images/rpi5-cclrte" \
-                -name "cclrte-image*.rpi-sdimg" 2>/dev/null | head -1) ;;
+                -name "cclrte-image*.rpi-sdimg" 2>/dev/null | sort | tail -1) ;;
         xenomai)
             image_file=$(find "${BUILD_DIR}/tmp/deploy/images/rpi5-cclrte-xenomai" \
-                -name "cclrte-xenomai-image*.rpi-sdimg" 2>/dev/null | head -1) ;;
-        *)
-            die "Unknown target: $target (use: preempt-rt | xenomai)" ;;
+                -name "cclrte-xenomai-image*.rpi-sdimg" 2>/dev/null | sort | tail -1) ;;
     esac
 
     [[ -z "$image_file" ]] && die "No image found for target '$target'. Run: ./cclrte.sh build $target"
@@ -622,18 +635,21 @@ ${BOLD}Usage:${NC}
   ${CYAN}./cclrte.sh help${NC}                                  Show this message
 
 ${BOLD}Build targets:${NC}
-  ${GREEN}preempt-rt${NC}   RPi5 2GB with PREEMPT_RT (default)
+  ${GREEN}preempt-rt${NC}   RPi5 2GB with PREEMPT_RT — ${BOLD}production-ready, use this${NC}
                 BCM2712 / Cortex-A76 @ 2.4 GHz (force_turbo), cycle time 500 us
-  ${GREEN}xenomai${NC}      RPi5 2GB with Xenomai Cobalt hard-RT
-                Requires Dovetail patches for kernel 6.6 + BCM2712
+                All features: CODESYS, WebUI, NTP, EtherCAT, Watchdog
+  ${YELLOW}xenomai${NC}      RPi5 2GB with Dovetail/Cobalt kernel — ${YELLOW}experimental, not production-ready${NC}
+                xenomai-libcobalt not yet integrated (no scarthgap meta-xenomai layer)
+                Same userspace as preempt-rt; only kernel differs
+                Requires Dovetail patches for BCM2712/arm64 — place in layers/ before building
   ${GREEN}qemu${NC}         QEMU x86-64 minimal image for CI testing
 
 ${BOLD}Examples:${NC}
   ./cclrte.sh build                    # PREEMPT_RT RPi5 (default)
   ./cclrte.sh build xenomai           # Xenomai Cobalt RPi5
-  ./cclrte.sh load /dev/sdb           # Flash PREEMPT_RT to SD
-  ./cclrte.sh load /dev/sdb xenomai   # Flash Xenomai to SD
-  ./cclrte.sh load /dev/sda --force   # Override safety check
+  ./cclrte.sh load /dev/sdb                       # Flash PREEMPT_RT to SD (default)
+  ./cclrte.sh load /dev/sdb xenomai              # Flash Xenomai to SD
+  ./cclrte.sh load /dev/sda preempt-rt --force   # Override /dev/sda safety check
 
 ${BOLD}First time:${NC}
   cp config/site.conf.sample config/site.conf
@@ -654,7 +670,7 @@ case "${1:-help}" in
     verify) cmd_verify "${2:-preempt-rt}" ;;
     test)   cmd_test ;;
     clean)  cmd_clean "${2:-build}" "${3:-preempt-rt}" ;;
-    load)   cmd_load "${2:-}" "${3:-preempt-rt}" "${4:-}" ;;
+    load)   cmd_load "${2:-}" "${@:3}" ;;
     qemu)   cmd_qemu ;;
     help|-h|--help) cmd_help ;;
     *) error "Unknown command: $1"; cmd_help; exit 1 ;;

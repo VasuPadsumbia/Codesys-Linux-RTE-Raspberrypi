@@ -99,10 +99,9 @@ WIFI_COUNTRY="IN"          # ISO 3166-1 alpha-2 country code for your region
 # SSH key for root access (paste your public key for passwordless login)
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... user@host"
 
-# eth0 — CODESYS programming port (static)
+# eth0 — CODESYS programming port (static, no gateway — internet routes via wlan0)
 ETH0_IP="192.168.2.100"
 ETH0_PREFIX="24"
-ETH0_GW="192.168.2.1"
 
 # wlan0 IP — leave empty for DHCP (recommended)
 WLAN_IP=""
@@ -340,7 +339,18 @@ The WebUI provides:
 - RT latency results and on-demand cyclictest
 - Network reconfiguration (eth0, wlan0, SSH keys)
 - CODESYS log viewer
+- Time synchronisation configuration (`/timesync`)
 - Password change and system reboot
+
+### Setting timezone and time sync method
+
+On first access, navigate to the **Clock & Time Sync** card on the dashboard and click **change** to open `/timesync`.
+
+1. Select your **timezone** from the dropdown (e.g. `Europe/Paris`, `Asia/Kolkata`)
+2. Select a sync method — **A (Internet NTP)** is the default; use **B** if the device has no internet access but is wired to a Windows engineering PC
+3. Click **Save & Return to Dashboard**
+
+The timezone is applied immediately. Click **Sync Time Now** to force an immediate NTP correction and verify the result.
 
 ---
 
@@ -350,6 +360,9 @@ The WebUI provides:
 |---------|----------|
 | No wlan0 connection | Check `WIFI_SSID`/`WIFI_PASSWORD` and `WIFI_COUNTRY` in `config/site.conf`; `journalctl -u wpa_supplicant@wlan0` |
 | eth0 not at 192.168.2.100 | Run `networkctl status eth0`; check `/etc/systemd/network/10-eth0.network` |
+| Clock shows wrong year | Connect WiFi with internet; click **Sync Time Now** — chrony will correct and write to RTC |
+| NTP badge shows NOT SYNCED | Verify `ip route` shows a default via wlan0; run `systemctl restart chronyd` |
+| Sync button says "no internet route" | eth0 must not have a default gateway — check `ip route`; wlan0 needs internet access |
 | network-firstboot did not run | Check `journalctl -u network-firstboot`; verify `/boot/site.conf` exists |
 | codesyscontrol not starting | Check `ls /opt/codesys/bin/codesyscontrol` — if missing, run `install-codesys-runtime.sh`; then `journalctl -u codesyscontrol -e` |
 | codesys-firstboot failed | `journalctl -u codesys-firstboot`; check `/var/log/codesys/firstboot.log`; re-run: `rm /var/lib/cclrte/codesys-installed && systemctl start codesys-firstboot` |

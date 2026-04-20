@@ -24,13 +24,14 @@ cclrte turns a Raspberry Pi 5 (2 GB) into a deterministic industrial PLC by laye
                     ┌──────────────────────────────────┐
                     │       Raspberry Pi 5             │
                     │                                  │
-  CODESYS IDE ──────┤ eth0  192.168.2.100/24           │
-  (port 1217)       │   └─ CODESYS gateway             │
+  CODESYS IDE ──────┤ eth0  192.168.2.100/24 (static)  │
+  (port 1217)       │   └─ CODESYS programming port    │
   OPC-UA client ────┤      CODESYS OPC-UA :4840        │
+                    │      (no default gateway here)   │
                     │                                  │
   WiFi AP ──────────┤ wlan0  DHCP                      │
-  WebUI :8080       │   └─ Management / SSH            │
-  SSH               │      Flask WebUI                 │
+  WebUI :8080       │   └─ Management / SSH / NTP      │
+  SSH / NTP         │      Flask WebUI                 │
                     │                                  │
   EtherCAT slaves ──┤ eth1  (no IP — link-only)        │
   (USB-to-ETH NIC)  │   └─ IgH EtherCAT master         │
@@ -46,7 +47,19 @@ cclrte turns a Raspberry Pi 5 (2 GB) into a deterministic industrial PLC by laye
                     └──────────────────────────────────┘
 ```
 
-**Note:** eth0 is the native RPi5 GbE (BCM2712 / RP1 MAC). eth1 is a USB-to-Ethernet adapter used exclusively for EtherCAT fieldbus with no IP address assigned.
+**Note:** eth0 is the native RPi5 GbE (BCM2712 / RP1 MAC). It has **no default gateway** — the default route is provided exclusively by wlan0 DHCP. This ensures NTP, DNS, and all outbound internet traffic travels via WiFi, not via the CODESYS programming link. eth1 is a USB-to-Ethernet adapter used exclusively for EtherCAT fieldbus with no IP address assigned.
+
+### Time Synchronisation
+
+The system clock is maintained by **chrony** (NTP client/server). Three sync methods are configurable from the WebUI (`/timesync`):
+
+| Method | Source | Accuracy |
+|--------|--------|----------|
+| A — Internet NTP | Cloudflare/Google via wlan0 | ~5–20 ms |
+| B — Engineering PC LAN | Windows W32tm on 192.168.2.x via eth0 | < 1 ms |
+| C — PTP IEEE 1588 | Hardware grandmaster on network | < 1 µs |
+
+chrony is started after `network-online.target` (fired by `systemd-networkd-wait-online --any`) so it always has a valid network route before its first poll. On successful sync, chrony writes the corrected time back to the RPi5 hardware RTC (PCF85063A) via `rtcsync`, preserving correct time across power cycles.
 
 ---
 
@@ -127,7 +140,9 @@ Without `isolcpus`, the Linux scheduler can migrate tasks onto any core, causing
 
 ## Dual-Kernel Architecture (Xenomai Variant)
 
-The Xenomai build adds a second real-time kernel (Cobalt) running beneath Linux via the Dovetail interrupt pipeline:
+> **Current implementation status:** The Xenomai build target produces a Dovetail-patched kernel with the Cobalt co-kernel compiled in. However, `xenomai-libcobalt` userspace libraries are **not yet included** in the image — there is no scarthgap-compatible `meta-xenomai` layer available at time of writing. CODESYS Control for Linux SL is a Linux binary and runs in the Linux (PREEMPT_RT) domain in both build targets. The practical difference today is lower hardware interrupt latency from the Dovetail IRQ pipeline, not full Cobalt task scheduling. The image recipe is a stub (`require cclrte-image.bb`) ready to be extended when `meta-xenomai` gains scarthgap support.
+
+The intended architecture when fully implemented:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -136,18 +151,21 @@ The Xenomai build adds a second real-time kernel (Cobalt) running beneath Linux 
 │  │  Cobalt micro-kernel (hard real-time)                   │    │
 │  │    IRQ pipeline — intercepts all hardware interrupts    │    │
 │  │    RTDM — real-time device model                        │    │
-│  │    RTnet — real-time network stack                      │    │
-│  │    Cobalt tasks: CODESYS (prio 80), EtherCAT (prio 90)  │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Key differences from PREEMPT_RT:
-- Hardware interrupts are handled by Cobalt before Linux sees them
-- Linux interrupts (wlan0, USB, logging) cannot delay Cobalt tasks
-- Worst-case latency 2–15 µs vs PREEMPT_RT's < 100 µs
-- Requires Dovetail-patched kernel for BCM2712 / arm64
-- Requires `xenomai-libcobalt` in userspace for CODESYS/EtherCAT
+What the Dovetail kernel provides today (without libcobalt userspace):
+- Hardware interrupts handled by Cobalt pipeline before Linux sees them
+- Lower timer interrupt latency → tighter EtherCAT and CODESYS cycle jitter
+- CODESYS and EtherCAT still run as Linux PREEMPT_RT threads (SCHED_FIFO)
+- Worst-case latency improvement over pure PREEMPT_RT, but not the full 2–15 µs advertised for Cobalt task scheduling
+
+What requires `xenomai-libcobalt` (not yet implemented):
+- Migrating CODESYS to a Cobalt task for hard 2–15 µs latency
+- Using RTnet for EtherCAT hard-RT network scheduling
+
+> **IgH EtherCAT:** Does not require Xenomai. Runs identically on both targets as a standard Linux kernel module with `SCHED_FIFO 90` on CPU2.
 
 ---
 
@@ -312,7 +330,7 @@ cclrte.sh build <target>
 | SSH access | Password auth enabled (root / `cclrte`); add SSH key via site.conf or WebUI for key-only access |
 | WebUI auth | PBKDF2-HMAC-SHA256, session cookie, `login_required` decorator |
 | WebUI credentials | `/var/lib/cclrte/webui-credentials.json` (chmod 600) |
-| CODESYS gateway | No built-in auth on port 1217; rely on network segregation (eth0 dedicated programming port) |
+| CODESYS gateway | No built-in auth on port 1217; rely on network segregation (eth0 dedicated programming port, no internet route) |
 | MQTT | No TLS by default; enable for production (see `docs/LIMITATIONS.md`) |
 | OPC-UA | open62541 without certificate infrastructure by default |
 | WiFi | WPA2-PSK; credentials in wpa_supplicant-wlan0.conf (chmod 600) |

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Time Sync{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Time Synchronisation</h2>
+  <a href="/" class="btn btn-secondary btn-sm">&#8592; Dashboard</a>
+</div>
+
+<p style="color:var(--muted);font-size:13px;margin-bottom:1.5rem;">
+  Select your region and synchronisation method. The Pi clock must match your
+  engineering PC for OPC-UA timestamps and CODESYS log correlation to align.
+</p>
+
+<form method="post" action="/timesync">
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">Region &amp; Timezone</div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>Timezone</label>
+        <select name="timezone" id="tz-select">
+          <optgroup label="UTC">
+            <option value="UTC" {% if current_tz == 'UTC' %}selected{% endif %}>UTC (no offset)</option>
+          </optgroup>
+          <optgroup label="Europe">
+            <option value="Europe/London"    {% if current_tz == 'Europe/London' %}selected{% endif %}>London (UTC+0/+1)</option>
+            <option value="Europe/Paris"     {% if current_tz == 'Europe/Paris' %}selected{% endif %}>Paris / Berlin / Rome (UTC+1/+2)</option>
+            <option value="Europe/Helsinki"  {% if current_tz == 'Europe/Helsinki' %}selected{% endif %}>Helsinki / Kyiv (UTC+2/+3)</option>
+            <option value="Europe/Moscow"    {% if current_tz == 'Europe/Moscow' %}selected{% endif %}>Moscow (UTC+3)</option>
+          </optgroup>
+          <optgroup label="Asia">
+            <option value="Asia/Dubai"       {% if current_tz == 'Asia/Dubai' %}selected{% endif %}>Dubai / UAE (UTC+4)</option>
+            <option value="Asia/Kolkata"     {% if current_tz == 'Asia/Kolkata' %}selected{% endif %}>India — IST (UTC+5:30)</option>
+            <option value="Asia/Dhaka"       {% if current_tz == 'Asia/Dhaka' %}selected{% endif %}>Bangladesh (UTC+6)</option>
+            <option value="Asia/Bangkok"     {% if current_tz == 'Asia/Bangkok' %}selected{% endif %}>Bangkok / Jakarta (UTC+7)</option>
+            <option value="Asia/Shanghai"    {% if current_tz == 'Asia/Shanghai' %}selected{% endif %}>China / Singapore (UTC+8)</option>
+            <option value="Asia/Tokyo"       {% if current_tz == 'Asia/Tokyo' %}selected{% endif %}>Japan / Korea (UTC+9)</option>
+          </optgroup>
+          <optgroup label="Australia &amp; Pacific">
+            <option value="Australia/Sydney" {% if current_tz == 'Australia/Sydney' %}selected{% endif %}>Sydney (UTC+10/+11)</option>
+            <option value="Pacific/Auckland" {% if current_tz == 'Pacific/Auckland' %}selected{% endif %}>Auckland (UTC+12/+13)</option>
+          </optgroup>
+          <optgroup label="Americas">
+            <option value="America/Sao_Paulo"   {% if current_tz == 'America/Sao_Paulo' %}selected{% endif %}>São Paulo (UTC-3)</option>
+            <option value="America/New_York"     {% if current_tz == 'America/New_York' %}selected{% endif %}>New York / Eastern (UTC-5/-4)</option>
+            <option value="America/Chicago"      {% if current_tz == 'America/Chicago' %}selected{% endif %}>Chicago / Central (UTC-6/-5)</option>
+            <option value="America/Denver"       {% if current_tz == 'America/Denver' %}selected{% endif %}>Denver / Mountain (UTC-7/-6)</option>
+            <option value="America/Los_Angeles"  {% if current_tz == 'America/Los_Angeles' %}selected{% endif %}>Los Angeles / Pacific (UTC-8/-7)</option>
+          </optgroup>
+        </select>
+        <small>Sets the clock display timezone on the Pi. NTP always syncs to UTC internally.</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="ts-grid">
+
+    <div class="ts-card {% if current_mode == 'a' %}ts-active{% endif %}" onclick="selectCard(this)">
+      <input type="radio" name="mode" value="a" {% if current_mode == 'a' %}checked{% endif %} style="display:none">
+      <div class="ts-letter">A</div>
+      <div class="ts-body">
+        <div class="ts-name">Internet NTP</div>
+        <div class="ts-accuracy">~5 – 20 ms accuracy</div>
+        <div class="ts-desc">Syncs over WiFi to Cloudflare &amp; Google time servers. Requires wlan0 connected to a WiFi network with internet.</div>
+        <div class="ts-host"><strong>Host side:</strong> Nothing required.</div>
+      </div>
+    </div>
+
+    <div class="ts-card {% if current_mode == 'b' %}ts-active{% endif %}" onclick="selectCard(this)">
+      <input type="radio" name="mode" value="b" {% if current_mode == 'b' %}checked{% endif %} style="display:none">
+      <div class="ts-letter">B</div>
+      <div class="ts-body">
+        <div class="ts-name">Engineering PC — Local NTP</div>
+        <div class="ts-accuracy">&lt; 1 ms accuracy over wired LAN</div>
+        <div class="ts-desc">Pi syncs directly to your PC over the CODESYS eth0 link. Works airgapped — no internet needed.</div>
+        <div class="ts-host">
+          <strong>Host side (Windows) — run as Administrator:</strong>
+          <pre>w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:YES /update
+net stop w32tm &amp;&amp; net start w32tm</pre>
+          Then allow <strong>UDP port 123 inbound</strong> in Windows Defender Firewall.
+        </div>
+        <div class="form-group" style="margin-top:0.75rem;" onclick="event.stopPropagation()">
+          <label>PC IP address on 192.168.2.x network</label>
+          <input type="text" name="pc_ip" placeholder="192.168.2.10"
+                 value="{{ saved_pc_ip }}" pattern="^(\d{1,3}\.){3}\d{1,3}$">
+        </div>
+      </div>
+    </div>
+
+    <div class="ts-card {% if current_mode == 'c' %}ts-active{% endif %}" onclick="selectCard(this)">
+      <input type="radio" name="mode" value="c" {% if current_mode == 'c' %}checked{% endif %} style="display:none">
+      <div class="ts-letter">C</div>
+      <div class="ts-body">
+        <div class="ts-name">PTP IEEE 1588</div>
+        <div class="ts-accuracy">&lt; 1 &mu;s accuracy (hardware timestamps)</div>
+        <div class="ts-desc">Hardware-level precision for microsecond CODESYS / OPC-UA timestamp alignment. Needs NIC hardware timestamp support on both ends.</div>
+        <div class="ts-host">
+          <strong>Host side:</strong> Install a PTP grandmaster on the 192.168.2.x network
+          (Meinberg LANTIME, or <code>ptp4l</code> on Linux in master mode).
+          Configure your NIC as PTP master before applying.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:1.25rem;display:flex;gap:0.75rem;">
+    <button type="submit" class="btn btn-primary">Save &amp; Return to Dashboard</button>
+    <a href="/" class="btn btn-secondary">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+function selectCard(card) {
+  document.querySelectorAll('.ts-card').forEach(c => c.classList.remove('ts-active'));
+  card.classList.add('ts-active');
+  card.querySelector('input[type=radio]').checked = true;
+}
+</script>
+{% endblock %}

@@ -113,6 +113,60 @@
   </div>
 
   <div class="card">
+    <div class="card-header">Clock &amp; Time Sync</div>
+    <div class="card-body">
+      <div class="info-row">
+        <span>Pi Clock</span>
+        <code id="pi-clock">{{ clock.display }}</code>
+      </div>
+      <div class="info-row">
+        <span>NTP Sync</span>
+        <span id="ntp-badge" class="badge {% if clock.ntp_synced %}badge-green{% else %}badge-yellow{% endif %}">
+          {{ 'SYNCED' if clock.ntp_synced else 'NOT SYNCED' }}
+        </span>
+      </div>
+      {% if clock.offset_ms is not none %}
+      <div class="info-row">
+        <span>Time Offset</span>
+        <code id="ntp-offset">{{ clock.offset_ms }} ms</code>
+      </div>
+      {% else %}
+      <div class="info-row">
+        <span>Time Offset</span>
+        <code id="ntp-offset">—</code>
+      </div>
+      {% endif %}
+      <div class="info-row">
+        <span>Method</span>
+        <span style="font-size:12px;color:var(--muted)">{{ clock.sync_method_label }}
+          <a href="/timesync" style="margin-left:0.4rem;font-size:11px;">change</a>
+        </span>
+      </div>
+      <div style="margin-top:0.75rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <button id="sync-btn" class="btn btn-secondary btn-sm" onclick="syncNow()">Sync Time Now</button>
+        <span id="sync-msg" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">CODESYS Runtime</div>
+    <div class="card-body">
+      <div class="info-row"><span>Status</span>
+        <span class="badge {% if status.codesys == 'active' %}badge-green{% else %}badge-red{% endif %}">
+          {{ status.codesys | upper }}
+        </span>
+      </div>
+      <div class="info-row"><span>Programming Port</span><code>{{ eth0_ip }}:1217</code></div>
+      <div class="info-row"><span>CPU Affinity</span><code>CPU3 (SCHED_FIFO 80)</code></div>
+      <div class="info-row"><span>Live Cycle Time</span><code id="dash-cycle">measuring…</code></div>
+      <div class="info-muted" style="margin-top:0.5rem;font-size:0.8rem;">
+        <a href="/codesys">Full CODESYS page &#8594;</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-header">SSH Access</div>
     <div class="card-body">
       <div class="info-row"><span>eth0 (wired)</span><code>ssh root@{{ eth0_ip }}</code></div>
@@ -122,6 +176,7 @@
     </div>
   </div>
 </div>
+
 {% endblock %}
 {% block scripts %}
 <script>
@@ -154,9 +209,64 @@ function refreshLoad() {
     if (hwTemp) hwTemp.textContent = t + ' °C';
   }).catch(() => {});
 }
-
 refreshLoad();
 setInterval(refreshLoad, 2000);
+
+function refreshClock() {
+  fetch('/api/clock').then(r => r.json()).then(d => {
+    const el = document.getElementById('pi-clock');
+    if (el) el.textContent = d.display;
+    const badge = document.getElementById('ntp-badge');
+    if (badge) {
+      badge.textContent = d.ntp_synced ? 'SYNCED' : 'NOT SYNCED';
+      badge.className = 'badge ' + (d.ntp_synced ? 'badge-green' : 'badge-yellow');
+    }
+    const off = document.getElementById('ntp-offset');
+    if (off) off.textContent = d.offset_ms !== null ? d.offset_ms + ' ms' : '—';
+  }).catch(() => {});
+}
+refreshClock();
+setInterval(refreshClock, 1000);
+
+function syncNow() {
+  const btn = document.getElementById('sync-btn');
+  const msg = document.getElementById('sync-msg');
+  btn.disabled = true;
+  btn.textContent = 'Syncing…';
+  msg.textContent = '';
+  fetch('/api/clock/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    .then(r => r.json())
+    .then(d => {
+      btn.disabled = false;
+      btn.textContent = 'Sync Time Now';
+      msg.textContent = d.message;
+      msg.style.color = d.ntp_synced ? 'var(--success)' : 'var(--warning)';
+      refreshClock();
+      if (!d.ntp_synced) setTimeout(refreshClock, 15000);
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Sync Time Now';
+      msg.textContent = 'Error';
+      msg.style.color = 'var(--danger)';
+    });
+}
+
+// CODESYS live cycle time on dashboard
+function refreshDashCycle() {
+  fetch('/api/codesys/cycle').then(r => r.json()).then(d => {
+    const el = document.getElementById('dash-cycle');
+    if (!el) return;
+    if (d.cycle_us) {
+      el.textContent = d.cycle_us + ' µs (' + d.hz + ' Hz)';
+    } else {
+      el.textContent = 'not running';
+    }
+  }).catch(() => {});
+}
+// First call primes schedstat delta; second call (5 s later) gives first real reading
+refreshDashCycle();
+setInterval(refreshDashCycle, 5000);
 
 setInterval(() => {
   fetch('/api/status').then(r => r.json()).then(data => {

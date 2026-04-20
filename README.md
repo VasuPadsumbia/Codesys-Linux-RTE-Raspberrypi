@@ -5,7 +5,7 @@
 [![Unit Tests](https://github.com/yourusername/yocto-gateway-rt/actions/workflows/test.yml/badge.svg)](https://github.com/yourusername/yocto-gateway-rt/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A Yocto-based real-time Linux distribution for the **Raspberry Pi 5 (2 GB)** that runs **CODESYS Control for Linux SL** as a deterministic industrial PLC. Designed for motion control, machine automation, and industrial IoT applications with cycle times down to 500 µs (PREEMPT_RT) or 250 µs (Xenomai Cobalt).
+A Yocto-based real-time Linux distribution for the **Raspberry Pi 5 (2 GB)** that runs **CODESYS Control for Linux SL** as a deterministic industrial PLC. Designed for motion control, machine automation, and industrial IoT applications with cycle times down to 500 µs (PREEMPT_RT). A Xenomai Cobalt build target is included as an experimental upgrade path.
 
 ---
 
@@ -20,8 +20,9 @@ A Yocto-based real-time Linux distribution for the **Raspberry Pi 5 (2 GB)** tha
 - **PROFINET device** — p-net stack (slave mode); controller requires CODESYS PROFINET SL
 - **IO-Link master** — iol (rt-labs), SPI0, 4 ports
 - **Modbus/RS-485** — via CODESYS SL on PL011 UART0
-- **WebUI** — Flask-based configuration dashboard, port 8080, dark industrial theme
-- **Deterministic networking** — eth0 static 192.168.2.100 (CODESYS programming), wlan0 DHCP (management)
+- **WebUI** — Flask-based configuration dashboard, port 8080, dark industrial theme; includes time sync configuration page with timezone selector and three sync methods (Internet NTP / PC LAN / PTP)
+- **Deterministic networking** — eth0 static 192.168.2.100 (CODESYS programming, no default gateway), wlan0 DHCP (management + internet + NTP)
+- **NTP time sync** — chrony with Cloudflare/Google servers; configurable to sync from engineering PC over eth0 for airgapped deployments; timezone selectable in WebUI
 - **Hardware watchdog** — BCM2712 15 s timeout, auto-reboots on runtime hang
 - **RT latency verification** — 3-phase cyclictest on CPU2 (EtherCAT) + CPU3 (CODESYS), ~3 min, triggered from WebUI
 - **KAS build system** — reproducible Yocto builds with shared sstate-cache
@@ -34,10 +35,10 @@ A Yocto-based real-time Linux distribution for the **Raspberry Pi 5 (2 GB)** tha
 | Target | KAS Config | Latency (typical) | Latency (worst-case) | Cycle Time |
 |--------|-----------|-------------------|----------------------|------------|
 | **PREEMPT_RT** (default) | `kas/rpi5-64.yml` | < 30 µs | < 100 µs | 500 µs |
-| **Xenomai Cobalt** | `kas/rpi5-xenomai.yml` | 2–5 µs | 2–15 µs | 250 µs |
+| **Xenomai Cobalt** *(experimental)* | `kas/rpi5-xenomai.yml` | Dovetail IRQ improvement; full 2–15 µs pending libcobalt integration | Not yet validated | 500 µs (same as PREEMPT_RT until libcobalt added) |
 | **QEMU CI** | `kas/qemu-x86-64.yml` | N/A | N/A | CI only |
 
-Start with PREEMPT_RT. Upgrade to Xenomai if cyclictest shows worst-case > 100 µs under your workload.
+Use PREEMPT_RT for all production and testing. The Xenomai target is a work in progress — `xenomai-libcobalt` userspace is not yet integrated (no scarthgap meta-xenomai layer exists at time of writing).
 
 ---
 

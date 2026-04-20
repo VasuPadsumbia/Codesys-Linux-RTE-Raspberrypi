@@ -37,8 +37,53 @@ The dashboard (`/`) shows real-time status at a glance:
 | **RT Latency** | Last cyclictest result — worst-case latency across CPU2/CPU3, pass/fail vs 100 µs threshold |
 | **Hardware** | BCM2712 SoC temperature in °C, uptime, platform, RT mode |
 | **PLC Load** | Live per-CPU load bars (updates every 2 s), memory usage, CODESYS process CPU %, temperature |
+| **Clock & Time Sync** | Live Pi clock, NTP sync badge, offset in ms, current sync method, Sync button |
+| **CODESYS Runtime** | Runtime status, programming port, CPU affinity, live cycle time |
 
-The status panel auto-refreshes every 5 seconds via `/api/status`. CPU load updates every 2 seconds via `/api/load`.
+The status panel auto-refreshes every 5 seconds via `/api/status`. CPU load updates every 2 seconds via `/api/load`. The clock updates every second via `/api/clock`.
+
+---
+
+## Time Synchronisation
+
+Accurate time is required so CODESYS log timestamps and OPC-UA event timestamps match the engineering PC and SCADA system.
+
+### Configuring the sync method
+
+Click **change** beside the Sync Method on the dashboard to open the time sync configuration page (`/timesync`).
+
+**Step 1 — Select your timezone** from the dropdown at the top of the page. This sets the display timezone on the Pi (NTP always syncs to UTC internally). The timezone takes effect immediately when you save.
+
+**Step 2 — Select a sync method:**
+
+| Method | Accuracy | When to use |
+|--------|----------|-------------|
+| **A — Internet NTP** | ~5–20 ms | wlan0 is connected to a WiFi network with internet access |
+| **B — Engineering PC (LAN)** | < 1 ms | Airgapped — no internet; PC and Pi on the same 192.168.2.x network |
+| **C — PTP IEEE 1588** | < 1 µs | Microsecond alignment required; dedicated PTP grandmaster on network |
+
+Click **Save & Return to Dashboard** — the method is saved and the timezone is applied immediately.
+
+### Method B — Windows PC as NTP server
+
+Run the following as Administrator on the engineering PC **before** clicking Apply:
+
+```cmd
+w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:YES /update
+net stop w32tm && net start w32tm
+```
+
+Then allow **UDP port 123 inbound** in Windows Defender Firewall, and enter the PC's 192.168.2.x IP address on the timesync page.
+
+### Method C — PTP IEEE 1588
+
+Install a PTP grandmaster on the 192.168.2.x network (Meinberg LANTIME hardware, or `ptp4l` on a Linux host in master mode). The Pi runs `ptp4l` in slave mode and `phc2sys` to sync the system clock from the PTP hardware clock.
+
+### Sync Time Now button
+
+Once a method is configured, click **Sync Time Now** on the dashboard to force an immediate synchronisation. The button reports the actual result — if sync fails (no internet route, PC unreachable, wrong timezone offset) it shows the error rather than a false success.
+
+> **Note:** If the clock shows the wrong year after a fresh flash, the hardware RTC has drifted. Connect to WiFi and click **Sync Time Now** to correct it. Once chrony has synced successfully it writes the correct time to the RTC (`rtcsync`), so the correct time persists across reboots even without network.
 
 ---
 
@@ -52,7 +97,8 @@ Navigate to **Network** (`/network`) to configure interfaces.
 |-------|---------|-------|
 | IP Address | `192.168.2.100` | Must be reachable from CODESYS IDE PC |
 | Prefix length | `24` | Subnet mask 255.255.255.0 |
-| Gateway | `192.168.2.1` | — |
+
+eth0 has **no default gateway** by design — internet traffic routes through wlan0 only. This prevents the CODESYS wired link from intercepting NTP, DNS, or MQTT traffic when the PC has no internet uplink.
 
 Changes write to `/etc/systemd/network/10-eth0.network` and restart `systemd-networkd`. A new IP takes effect within seconds.
 
@@ -196,7 +242,7 @@ MyMachineProject/
 ### Task Configuration for Motion Control
 
 In the CODESYS Task Configuration:
-- **MainTask**: Cyclic, interval **500 µs** (or 250 µs with Xenomai), priority 14 (highest)
+- **MainTask**: Cyclic, interval **500 µs**, priority 14 (highest)
 - **SlowTask**: Cyclic, 10 ms, priority 10
 
 The kernel and `rt-setup.service` ensure the CODESYS process runs on CPU3 at SCHED_FIFO 80, so even 500 µs tasks complete deterministically.
@@ -314,21 +360,71 @@ Connect directly to eth0 (192.168.2.100) and use SSH over that interface, then u
 
 ## Build Target Reference
 
-| Feature | PREEMPT_RT | Xenomai Cobalt |
-|---------|-----------|----------------|
-| Worst-case latency | < 100 µs | 2–15 µs |
-| Minimum cycle time | 500 µs | 250 µs |
-| Kernel | `linux-raspberrypi` + RT patches | Dovetail-patched kernel + Cobalt |
-| Userspace changes | None | `xenomai-libcobalt` required |
+| Feature | PREEMPT_RT | Xenomai Cobalt (current) |
+|---------|-----------|--------------------------|
+| Worst-case latency | < 100 µs | Lower than PREEMPT_RT (Dovetail IRQ pipeline); full 2–15 µs requires libcobalt tasks — not yet implemented |
+| Minimum cycle time | 500 µs | 500 µs (same — CODESYS still runs as Linux thread) |
+| Kernel | `linux-raspberrypi` + RT patches | Dovetail-patched kernel + Cobalt co-kernel |
+| Userspace | Standard | `xenomai-libcobalt` **not yet included** (no scarthgap meta-xenomai layer) |
+| CODESYS scheduling | Linux PREEMPT_RT SCHED_FIFO 80 | Linux PREEMPT_RT SCHED_FIFO 80 (same) |
+| EtherCAT (IgH master) | SCHED_FIFO 90, PREEMPT_RT | Same IgH driver, SCHED_FIFO 90 (RTnet not used) |
 | Build complexity | Standard | Requires Dovetail patches for BCM2712 |
-| RPi5 stability | Well-tested | Requires community Dovetail patches |
-| Recommended for | Standard motion control | High-speed / many-axis |
+| RPi5 stability | Well-tested | Community Dovetail patches — not validated on this board |
+| Recommended for | Standard motion control (tested) | Future: high-speed / many-axis once libcobalt integrated |
 
-To upgrade from PREEMPT_RT to Xenomai:
+> The Xenomai build is a **work in progress**. Use PREEMPT_RT for production. The Xenomai target exists to enable future integration of `xenomai-libcobalt` once a scarthgap-compatible layer is available.
+
+To build the Xenomai target (experimental):
 1. Obtain Dovetail patches (see [INSTALLATION.md](INSTALLATION.md))
 2. Run `./cclrte.sh build xenomai`
 3. Flash: `./cclrte.sh load /dev/sdX xenomai`
 4. All CODESYS programs and configs carry over (same `/var/opt/codesys` partition)
+
+---
+
+## Validation Status
+
+What has been physically tested on RPi5 hardware and what has not.
+
+### ✅ Tested and verified
+
+| Feature | Result |
+|---------|--------|
+| **CODESYS Control for Linux SL** | Runtime installs, starts, and is visible to IDE via Scan Network |
+| **CODESYS IDE connection** | Online → Scan Network finds device; Download and Run work |
+| **PLC cycle time accuracy** | Cyclictest worst-case 28 µs on CPU3 with a running counter program; CODESYS Cycle Time Monitor confirmed |
+| **RT latency verification** | 3-phase cyclictest (CPU2 + CPU3) runs to completion via WebUI and CLI |
+| **WebUI — Dashboard** | All cards load: service status, network IPs, RT result, hardware stats, PLC load bars, clock, CODESYS runtime |
+| **WebUI — Live CPU/memory load** | Bars update every 2 s correctly |
+| **WebUI — Clock & Time Sync** | Pi clock displays and updates every second; NTP badge reflects real sync state (no false positives) |
+| **WebUI — Timesync page** | Timezone selection applies immediately; Method A/B/C selection saves and shows on dashboard |
+| **WebUI — Sync Time Now** | Reports real result — success with offset, or specific failure reason (no internet route, etc.) |
+| **WebUI — Network page** | eth0/wlan0 reconfiguration; SSH key injection |
+| **WebUI — CODESYS page** | Service start/stop; log viewer; cycle time display |
+| **WebUI — System page** | Reboot; RT verify trigger; password change |
+| **NTP time sync (Method A)** | chrony syncs to Cloudflare/Google over WiFi; correct time persists in RTC across reboots |
+| **Routing isolation** | eth0 has no default gateway; NTP/internet traffic routes via wlan0 only |
+| **SSH access** | Root login on eth0 and wlan0 (password + key) |
+| **WiFi management** | wlan0 DHCP via wpa_supplicant; credentials set from site.conf |
+| **Watchdog** | Service runs; BCM2712 hardware watchdog active |
+
+### ❌ Not yet tested (hardware not available during development)
+
+| Feature | Notes |
+|---------|-------|
+| **EtherCAT (IgH master)** | Service builds and installs; fieldbus operation with real slaves not tested — requires USB-to-Ethernet NIC and EtherCAT hardware |
+| **IO-Link** | Recipe builds; physical HAT and devices not tested |
+| **CAN bus (MCP2515)** | `can-utils` installed; no CAN HAT tested |
+| **RS-485 / Modbus RTU** | UART0 configured; no RS-485 HAT tested |
+| **PROFINET device (p-net)** | Recipe builds; no PROFINET controller or hardware tested |
+| **OPC-UA (open62541)** | Library builds and links; end-to-end client connection not tested |
+| **MQTT (Mosquitto)** | Broker installs; publish/subscribe with external client not tested |
+| **NTP Method B (PC as NTP server)** | W32tm configuration documented; end-to-end sync over eth0 not tested on hardware |
+| **NTP Method C (PTP IEEE 1588)** | `linuxptp` not yet in image; grandmaster setup not tested |
+| **Xenomai Cobalt** | Build infrastructure in place; `xenomai-libcobalt` userspace not yet included (no scarthgap meta-xenomai layer); Dovetail patches for BCM2712 are community-maintained and not validated on this board |
+| **Hardware RTC (PCF85063A)** | `rtcsync` in chrony config; RTC persistence across cold power-off not explicitly tested |
+
+> Features marked ❌ are **build-complete** — the recipes exist, packages install, and services start. They are untested due to missing hardware, not missing software. Treat them as unvalidated until tested with real devices.
 
 ---
 
