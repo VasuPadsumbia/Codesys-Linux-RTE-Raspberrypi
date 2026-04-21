@@ -512,6 +512,27 @@ cmd_verify() {
                     _vcheck "Boot: VideoCore firmware" FAIL "start4.elf / start.elf not found"
                 fi
 
+                # Check 8 — cmdline.txt RT isolation params
+                local cmdline_file="${mnt_boot}/cmdline.txt"
+                if [[ -f "$cmdline_file" ]]; then
+                    local cmdline_content
+                    cmdline_content=$(cat "$cmdline_file" 2>/dev/null)
+                    local cmd_ok=PASS cmd_detail=""
+                    for param in "isolcpus=2,3" "nohz_full=2,3" "rcu_nocbs=2,3" "threadirqs"; do
+                        if ! grep -q "$param" <<< "$cmdline_content"; then
+                            cmd_ok=FAIL
+                            cmd_detail="${cmd_detail}${param} missing; "
+                        fi
+                    done
+                    if [[ "$target" == "preempt-rt" ]] && ! grep -q "preempt=full" <<< "$cmdline_content"; then
+                        cmd_ok=FAIL
+                        cmd_detail="${cmd_detail}preempt=full missing; "
+                    fi
+                    _vcheck "Boot: cmdline.txt RT params" "$cmd_ok" "${cmd_detail:-isolcpus nohz_full rcu_nocbs threadirqs all present}"
+                else
+                    _vcheck "Boot: cmdline.txt RT params" FAIL "cmdline.txt not found in boot partition"
+                fi
+
                 umount "$mnt_boot" 2>/dev/null
             else
                 _vcheck "Boot partition mount" FAIL "could not mount ${loop_dev}p1 (vfat)"
@@ -563,6 +584,56 @@ cmd_verify() {
                     _vcheck "Root: plc-webui.service" PASS
                 else
                     _vcheck "Root: plc-webui.service" FAIL "WebUI service unit not found"
+                fi
+
+                # Check 13 — WebUI timesync template
+                if [[ -f "${mnt_root}/opt/cclrte/webui/templates/timesync.html" ]]; then
+                    _vcheck "Root: WebUI timesync.html" PASS
+                else
+                    _vcheck "Root: WebUI timesync.html" FAIL "missing — timesync page will 500; rebuild plc-webui"
+                fi
+
+                # Check 14 — rt-setup.service (system-wide RT init before EtherCAT/CODESYS)
+                local rt_svc
+                rt_svc=$(find "${mnt_root}/lib/systemd/system" \
+                    "${mnt_root}/usr/lib/systemd/system" \
+                    -name "rt-setup.service" 2>/dev/null | head -1)
+                if [[ -n "$rt_svc" ]]; then
+                    _vcheck "Root: rt-setup.service" PASS
+                else
+                    _vcheck "Root: rt-setup.service" FAIL "missing — IRQ affinity and RT sysctl will not be applied at boot"
+                fi
+
+                # Check 15 — CODESYS RT drop-in (CPU3, SCHED_FIFO 80)
+                if [[ -f "${mnt_root}/usr/lib/systemd/system/codesyscontrol.service.d/rt-override.conf" || \
+                      -f "${mnt_root}/lib/systemd/system/codesyscontrol.service.d/rt-override.conf" ]]; then
+                    _vcheck "Root: CODESYS rt-override.conf" PASS "CPUAffinity=3 SCHED_FIFO 80 drop-in present"
+                else
+                    _vcheck "Root: CODESYS rt-override.conf" FAIL "missing — CODESYS will run on all CPUs without RT priority"
+                fi
+
+                # Check 16 — chrony conf.d with unlimited makestep (large clock offsets)
+                local chrony_cclrte="${mnt_root}/etc/chrony/conf.d/10-cclrte.conf"
+                if [[ -f "$chrony_cclrte" ]]; then
+                    if grep -q "makestep.*-1" "$chrony_cclrte" 2>/dev/null; then
+                        _vcheck "Root: chrony makestep unlimited" PASS "makestep 1.0 -1 set — large offsets will be corrected"
+                    else
+                        _vcheck "Root: chrony makestep unlimited" FAIL "makestep -1 not found in 10-cclrte.conf — clock may never sync after long power-off"
+                    fi
+                else
+                    _vcheck "Root: chrony conf.d/10-cclrte.conf" FAIL "missing — no Cloudflare/Google NTP servers configured"
+                fi
+
+                # Check 17 — eth0.network has no Gateway (prevents eth0 stealing default route)
+                local eth0_net="${mnt_root}/etc/systemd/network/10-eth0.network"
+                if [[ -f "$eth0_net" ]]; then
+                    if grep -qE "^Gateway=" "$eth0_net" 2>/dev/null; then
+                        _vcheck "Root: eth0 no-gateway" FAIL "Gateway= found in 10-eth0.network — eth0 will steal default route and break NTP"
+                    else
+                        _vcheck "Root: eth0 no-gateway" PASS "no Gateway in eth0 config — wlan0 owns default route"
+                    fi
+                else
+                    _vcheck "Root: eth0 no-gateway" FAIL "10-eth0.network not found"
                 fi
 
                 umount "$mnt_root" 2>/dev/null

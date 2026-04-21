@@ -82,16 +82,17 @@ fi
 # ── eth0 static IP ────────────────────────────────────────────────────────────
 ETH0_IP=${ETH0_IP:-"192.168.2.100"}
 ETH0_PREFIX=${ETH0_PREFIX:-"24"}
-ETH0_GW=${ETH0_GW:-"192.168.2.1"}
+# No gateway on eth0 — it is a point-to-point CODESYS programming link only.
+# Default route must come exclusively from wlan0 DHCP so NTP/internet traffic
+# does not get routed via the engineering PC and silently dropped.
 
-log "Configuring ${ETH0_IFACE}: ${ETH0_IP}/${ETH0_PREFIX} gw ${ETH0_GW}"
+log "Configuring ${ETH0_IFACE}: ${ETH0_IP}/${ETH0_PREFIX} (no gateway)"
 cat > "$ETH0_NETWORK" <<EOF || warn "Failed to write eth0 network config"
 [Match]
 Name=${ETH0_IFACE}
 
 [Network]
 Address=${ETH0_IP}/${ETH0_PREFIX}
-Gateway=${ETH0_GW}
 DNS=8.8.8.8
 Description=CODESYS Programming Port
 

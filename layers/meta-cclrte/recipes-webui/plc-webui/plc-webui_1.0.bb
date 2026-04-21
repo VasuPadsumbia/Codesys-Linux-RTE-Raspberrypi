@@ -18,6 +18,7 @@ SRC_URI = " \
     file://templates/protocols.html \
     file://templates/codesys.html \
     file://templates/system.html \
+    file://templates/timesync.html \
     file://static/css/style.css \
     file://static/js/app.js \
 "
@@ -40,7 +41,8 @@ do_install() {
     install -m 0644 ${WORKDIR}/templates/network.html   ${D}/opt/cclrte/webui/templates/
     install -m 0644 ${WORKDIR}/templates/protocols.html ${D}/opt/cclrte/webui/templates/
     install -m 0644 ${WORKDIR}/templates/codesys.html   ${D}/opt/cclrte/webui/templates/
-    install -m 0644 ${WORKDIR}/templates/system.html    ${D}/opt/cclrte/webui/templates/
+    install -m 0644 ${WORKDIR}/templates/system.html     ${D}/opt/cclrte/webui/templates/
+    install -m 0644 ${WORKDIR}/templates/timesync.html  ${D}/opt/cclrte/webui/templates/
 
     install -m 0644 ${WORKDIR}/static/css/style.css ${D}/opt/cclrte/webui/static/css/
     install -m 0644 ${WORKDIR}/static/js/app.js     ${D}/opt/cclrte/webui/static/js/

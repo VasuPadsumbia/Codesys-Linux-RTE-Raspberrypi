@@ -6,8 +6,9 @@ Before=codesyscontrol.service
 
 [Service]
 Type=forking
-ExecStart=/etc/init.d/ethercat start
-ExecStop=/etc/init.d/ethercat stop
+EnvironmentFile=-/etc/ethercat.conf
+ExecStart=/usr/sbin/ethercatctl start
+ExecStop=/usr/sbin/ethercatctl stop
 RemainAfterExit=yes
 # EtherCAT master thread is pinned to CPU2 with SCHED_FIFO 90 by rt-setup.sh
 # These defaults apply before rt-setup.sh runs

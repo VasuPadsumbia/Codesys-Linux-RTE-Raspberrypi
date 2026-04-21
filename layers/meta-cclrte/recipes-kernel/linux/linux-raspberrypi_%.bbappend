@@ -4,10 +4,15 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 # ── PREEMPT_RT (rpi5-cclrte) ─────────────────────────────────────────────────
+# 0001-arm64-select-ARCH_SUPPORTS_RT.patch: RPi kernel fork omits this mainline
+#   arm64 Kconfig select — without it CONFIG_PREEMPT_RT has an unsatisfied
+#   dependency and merge_config.sh silently falls back to CONFIG_PREEMPT=y.
 # cclrte-rt.cfg           : PREEMPT_RT core, HZ=1000, NO_HZ_FULL
 # cclrte-latency.cfg      : latency reduction (idle states, IRQ threading, cpufreq)
 # cclrte-disable-debug.cfg: strip debug/trace overhead that adds jitter
 SRC_URI:append:rpi5-cclrte = " \
+    file://0001-arm64-select-ARCH_SUPPORTS_RT.patch \
+    file://0002-sysfs-add-sys-kernel-realtime-entry.patch \
     file://cclrte-rt.cfg \
     file://cclrte-latency.cfg \
     file://cclrte-disable-debug.cfg \

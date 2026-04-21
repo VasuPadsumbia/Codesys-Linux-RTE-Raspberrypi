@@ -105,8 +105,17 @@ else
         log "  → CPU2 (EtherCAT): ${CPU2_MAX}µs — check IRQ affinity (rt-setup.service)"
     fi
     if [[ "$CPU3_MAX" -gt "$PASS_THRESHOLD_US" ]]; then
-        log "  → CPU3 (CODESYS): ${CPU3_MAX}µs — consider Xenomai build target"
-        log "     Build: ./cclrte.sh build xenomai"
+        log "  → CPU3 (CODESYS): ${CPU3_MAX}µs"
+        if [[ "$CPU3_MAX" -gt 10000 ]]; then
+            log "     Latency >10ms — likely PREEMPT_RT not active in kernel"
+            log "     Check: zcat /proc/config.gz | grep CONFIG_PREEMPT_RT"
+            log "     Check: cat /sys/kernel/realtime  (must output 1)"
+            log "     Check: uname -r  (must contain -cclrte-rt)"
+            log "     Fix:   ./cclrte.sh clean recipes preempt-rt && ./cclrte.sh build preempt-rt"
+        else
+            log "     Latency in range — check SchedulerInterval=500 in CODESYSControl.cfg"
+            log "     If consistently >100µs under load: consider Xenomai build"
+        fi
     fi
 fi
 

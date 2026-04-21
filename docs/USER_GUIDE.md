@@ -392,8 +392,8 @@ What has been physically tested on RPi5 hardware and what has not.
 |---------|--------|
 | **CODESYS Control for Linux SL** | Runtime installs, starts, and is visible to IDE via Scan Network |
 | **CODESYS IDE connection** | Online → Scan Network finds device; Download and Run work |
-| **PLC cycle time accuracy** | Cyclictest worst-case 28 µs on CPU3 with a running counter program; CODESYS Cycle Time Monitor confirmed |
-| **RT latency verification** | 3-phase cyclictest (CPU2 + CPU3) runs to completion via WebUI and CLI |
+| **RT latency (idle)** | Cyclictest worst-case **11 µs** on CPU3 (SCHED_FIFO 90, 500 µs interval, 30 s) — no PLC program running; under real scan-cycle load not yet tested |
+| **RT configuration** | CPU3 affinity (0x8), isolcpus=2,3, sched_rt_runtime_us=-1, performance governor — all verified on hardware |
 | **WebUI — Dashboard** | All cards load: service status, network IPs, RT result, hardware stats, PLC load bars, clock, CODESYS runtime |
 | **WebUI — Live CPU/memory load** | Bars update every 2 s correctly |
 | **WebUI — Clock & Time Sync** | Pi clock displays and updates every second; NTP badge reflects real sync state (no false positives) |
@@ -412,6 +412,8 @@ What has been physically tested on RPi5 hardware and what has not.
 
 | Feature | Notes |
 |---------|-------|
+| **RT latency under PLC load** | Cyclictest run idle only; worst-case latency with a real CODESYS program running (scan cycle + I/O) not yet measured |
+| **CODESYS Cycle Time Monitor** | Runtime starts and IDE connects; no PLC program downloaded and run yet |
 | **EtherCAT (IgH master)** | Service builds and installs; fieldbus operation with real slaves not tested — requires USB-to-Ethernet NIC and EtherCAT hardware |
 | **IO-Link** | Recipe builds; physical HAT and devices not tested |
 | **CAN bus (MCP2515)** | `can-utils` installed; no CAN HAT tested |

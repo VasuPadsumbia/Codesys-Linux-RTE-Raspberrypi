@@ -1,0 +1,47 @@
+From: CCLRTE <cclrte@local>
+Date: Mon, 21 Apr 2026 00:00:00 +0000
+Subject: [PATCH] sysfs: Add /sys/kernel/realtime entry
+
+Adds /sys/kernel/realtime which outputs 1 when the kernel is built with
+CONFIG_PREEMPT_RT=y, 0 otherwise. Provides a simple runtime check without
+needing to decompress /proc/config.gz.
+
+Signed-off-by: CCLRTE <cclrte@local>
+---
+ kernel/ksysfs.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/kernel/ksysfs.c b/kernel/ksysfs.c
+index 1d4bc493b2f4..a3321603c2e7 100644
+--- a/kernel/ksysfs.c
++++ b/kernel/ksysfs.c
+@@ -187,6 +187,21 @@ static ssize_t fscaps_show(struct kobject *kobj,
+ }
+ KERNEL_ATTR_RO(fscaps);
+ 
++#ifdef CONFIG_PREEMPT_RT
++static ssize_t realtime_show(struct kobject *kobj,
++				  struct kobj_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%d\n", 1);
++}
++#else
++static ssize_t realtime_show(struct kobject *kobj,
++				  struct kobj_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%d\n", 0);
++}
++#endif
++KERNEL_ATTR_RO(realtime);
++
+ #ifndef CONFIG_TINY_RCU
+ int rcu_expedited;
+ static ssize_t rcu_expedited_show(struct kobject *kobj,
+@@ -253,6 +268,7 @@ static struct attribute * kernel_attrs[] = {
+ 	&fscaps_attr.attr,
+ 	&uevent_seqnum_attr.attr,
+ 	&cpu_byteorder_attr.attr,
++	&realtime_attr.attr,
+ 	&address_bits_attr.attr,
+ #ifdef CONFIG_UEVENT_HELPER
+ 	&uevent_helper_attr.attr,

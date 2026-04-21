@@ -26,6 +26,7 @@ log "Starting real-time system setup (PREEMPT_RT)"
 # ── 1. IRQ affinity — pin all IRQs to CPU0,1 ─────────────────────────────────
 # EtherCAT and CODESYS CPUs (2,3) must not be interrupted by device IRQs.
 log "Setting default IRQ affinity to CPU0,1 (bitmask 0x3)"
+echo 3 > /proc/irq/default_smp_affinity 2>/dev/null || true
 for irq_dir in /proc/irq/*/; do
     irq=$(basename "$irq_dir")
     [[ "$irq" == "default_smp_affinity" ]] && continue

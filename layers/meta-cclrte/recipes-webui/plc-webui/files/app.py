@@ -210,20 +210,22 @@ def clock_info():
     offset_ms = None
     ntp_synced = False
     if ntp_running:
-        # Primary: chronyc tracking (available once chronyc package is installed)
         ctl_out, ctl_rc = run('chronyc tracking 2>/dev/null')
         if ctl_rc == 0 and ctl_out:
-            ntp_synced = 'Reference ID' in ctl_out and '7F7F0101' not in ctl_out
+            # 00000000 = no source at all; 7F7F0101 = local clock fallback — both mean not synced
+            no_source   = '00000000 ()' in ctl_out
+            local_clock = '7F7F0101' in ctl_out
+            has_ref     = 'Reference ID' in ctl_out
+            ntp_synced  = has_ref and not no_source and not local_clock
             m = re.search(r'System time\s*:\s*([\d.]+)\s*seconds', ctl_out)
-            if m:
+            if m and ntp_synced:
                 offset_ms = round(float(m.group(1)) * 1000, 2)
         else:
-            # Fallback: compare local clock against HTTP Date header
+            # chronyc unavailable — fall back to HTTP Date header
             off = http_time_offset_s()
             if off is not None:
-                ntp_synced = abs(off) < 5.0   # within 5 s = acceptable
+                ntp_synced = abs(off) < 5.0
                 offset_ms  = round(off * 1000, 1)
-            # No chronyc and no internet → unknown, report not synced
     ntp_cfg = read_ntp_mode()
     return {
         'iso':               now.strftime('%Y-%m-%dT%H:%M:%S'),
@@ -307,7 +309,10 @@ def index():
     temp     = cpu_temp()
     up       = uptime()
     kernel, _ = run('uname -r')
-    rt_mode  = 'XENOMAI' if 'xenomai' in kernel.lower() else 'PREEMPT_RT'
+    if 'xenomai' in kernel.lower():
+        rt_mode = 'Xenomai Cobalt (experimental)'
+    else:
+        rt_mode = 'PREEMPT_RT'
     clk      = clock_info()
     return render_template('index.html',
         status=status, rt=rt,
@@ -586,8 +591,12 @@ def api_clock_sync():
 
     def _burst_and_step():
         run('chronyc burst 4/4 2>/dev/null')
-        time.sleep(5)
+        time.sleep(8)
         run('chronyc makestep 2>/dev/null')
+
+    def _year_ok():
+        """True if the system clock year is plausible (>= 2025)."""
+        return datetime.now().year >= 2025
 
     if mode == 'b' and pc_ip:
         conf = '/etc/chrony/conf.d/20-local-pc.conf'
@@ -596,32 +605,45 @@ def api_clock_sync():
                 f.write('# Engineering PC — local NTP master over eth0\n')
                 f.write(f'server {pc_ip} iburst prefer minpoll 4 maxpoll 6\n')
         except OSError as e:
-            return jsonify({'ntp_synced': False, 'message': f'Could not write config: {e}'})
+            return jsonify({'ntp_synced': False, 'message': f'Failed — could not write chrony config: {e}'})
         run('systemctl restart chronyd')
         time.sleep(3)
         _burst_and_step()
         info = clock_info()
-        info['message'] = f'Synced to PC {pc_ip}' if info['ntp_synced'] else \
-            f'Sync to PC {pc_ip} in progress — check again in 30 s'
+        if info['ntp_synced'] and _year_ok():
+            info['message'] = f'Synced to PC {pc_ip} — offset {info["offset_ms"]} ms' if info['offset_ms'] is not None else f'Synced to PC {pc_ip}'
+        else:
+            info['message'] = f'Failed — could not reach PC {pc_ip} on eth0. Check PC IP and UDP port 123 firewall rule.'
+            info['ntp_synced'] = False
         return jsonify(info)
 
     if mode == 'c':
         info = clock_info()
-        info['message'] = 'PTP mode — ensure grandmaster is active on your network'
+        info['message'] = 'PTP mode — sync is handled by ptp4l. Ensure grandmaster is active on your network.'
         return jsonify(info)
 
     # Mode A — internet NTP
     _ensure_chronyd()
+    # Check internet reachability before attempting
+    off_before = http_time_offset_s()
+    if off_before is None:
+        info = clock_info()
+        info['ntp_synced'] = False
+        info['message'] = 'Failed — no internet route. Check WiFi is connected and ip route shows default via wlan0.'
+        return jsonify(info)
+
     _burst_and_step()
     info = clock_info()
-    if info['ntp_synced']:
+    if info['ntp_synced'] and _year_ok():
         info['message'] = 'Clock synced' + (f' — offset {info["offset_ms"]} ms' if info['offset_ms'] is not None else '')
     else:
         off = http_time_offset_s()
-        if off is None:
-            info['message'] = 'Sync failed — no internet route (check WiFi / routing)'
+        if off is not None:
+            info['ntp_synced'] = False
+            info['message'] = f'Sync in progress — offset still {round(abs(off*1000))} ms. chrony is stepping the clock, check again in 30 s.'
         else:
-            info['message'] = f'Sync in progress — current offset {round(off*1000)} ms, check again in 30 s'
+            info['ntp_synced'] = False
+            info['message'] = 'Failed — internet was reachable but sync did not complete. Check chrony logs: journalctl -u chronyd'
     return jsonify(info)
 
 @app.route('/api/codesys/log')

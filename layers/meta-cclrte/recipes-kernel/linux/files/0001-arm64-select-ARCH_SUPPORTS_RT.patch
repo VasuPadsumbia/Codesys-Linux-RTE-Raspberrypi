@@ -1,0 +1,30 @@
+From: CCLRTE <cclrte@local>
+Date: Mon, 21 Apr 2026 00:00:00 +0000
+Subject: [PATCH] arm64: select ARCH_SUPPORTS_RT to enable PREEMPT_RT
+
+The RPi kernel fork dropped 'select ARCH_SUPPORTS_RT' from the arm64
+config block that mainline Linux 6.6 has. Without it, CONFIG_PREEMPT_RT
+has an unsatisfied dependency and merge_config.sh silently falls back to
+CONFIG_PREEMPT=y (the defconfig default), making the PREEMPT_RT option
+invisible in Kconfig and unusable via .cfg fragments.
+
+This one-line addition restores parity with mainline arm64 Kconfig,
+allowing CONFIG_PREEMPT_RT=y in cclrte-rt.cfg to take effect.
+
+Signed-off-by: CCLRTE <cclrte@local>
+---
+ arch/arm64/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 1111111..2222222 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -89,6 +89,7 @@ config ARM64
+ 	select ARCH_SUPPORTS_HUGETLBFS
+ 	select ARCH_SUPPORTS_MEMORY_FAILURE
+ 	select ARCH_SUPPORTS_SHADOW_CALL_STACK if CC_HAVE_SHADOW_CALL_STACK
++	select ARCH_SUPPORTS_RT
+ 	select ARCH_SUPPORTS_LTO_CLANG if CPU_LITTLE_ENDIAN
+ 	select ARCH_SUPPORTS_LTO_CLANG_THIN
+ 	select ARCH_SUPPORTS_CFI_CLANG
