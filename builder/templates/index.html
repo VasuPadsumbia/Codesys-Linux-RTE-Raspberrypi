@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCLRTE Builder</title>
+<style>
+:root {
+  --bg:      #0f1117;
+  --bg2:     #1a1d27;
+  --bg3:     #252836;
+  --border:  #363a4a;
+  --text:    #e2e4ee;
+  --muted:   #8b8fa8;
+  --blue:    #4fc3f7;
+  --green:   #4caf50;
+  --orange:  #ff9800;
+  --red:     #f44336;
+  --yellow:  #ffd740;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+header {
+  background: var(--bg2);
+  border-bottom: 2px solid var(--blue);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.logo-mark { font-size: 28px; line-height: 1; }
+.logo-text { font-size: 20px; font-weight: 800; color: var(--blue); letter-spacing: -0.5px; }
+.logo-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.header-badge {
+  margin-left: auto;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.badge-idle    { background: var(--bg3);                  color: var(--muted);  }
+.badge-running { background: rgba(76,175,80,0.18);        color: var(--green);  border: 1px solid rgba(76,175,80,0.4); }
+.badge-done    { background: rgba(79,195,247,0.18);       color: var(--blue);   border: 1px solid rgba(79,195,247,0.4); }
+.badge-error   { background: rgba(244, 67, 54, 0.18);     color: var(--red);    border: 1px solid rgba(244,67,54,0.4);  }
+
+/* ── Tabs ───────────────────────────────────────────────────────────────────── */
+.tabs {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  padding: 0 24px;
+  gap: 4px;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 14px 20px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+/* ── Content ────────────────────────────────────────────────────────────────── */
+.tab-pane { display: none; padding: 24px; max-width: 860px; margin: 0 auto; }
+.tab-pane.active { display: block; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+/* ── Forms ──────────────────────────────────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.form-full  { grid-column: 1 / -1; }
+.form-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; letter-spacing: 0.3px; }
+input, select, textarea {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 9px 11px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+textarea { font-family: "Consolas", "Monaco", monospace; resize: vertical; min-height: 72px; font-size: 12px; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────────── */
+.btn {
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 20px;
+  transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+.btn-primary  { background: var(--blue);   color: #000; }
+.btn-success  { background: var(--green);  color: #000; font-size: 15px; padding: 13px 32px; }
+.btn-danger   { background: var(--red);    color: #fff; }
+.btn-warn     { background: var(--orange); color: #000; font-size: 15px; padding: 13px 32px; }
+.btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* ── Progress bars ──────────────────────────────────────────────────────────── */
+.progress-wrap { background: var(--bg3); border-radius: 4px; height: 10px; overflow: hidden; margin: 8px 0; }
+.progress-bar  { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+.pb-blue   { background: var(--blue);   }
+.pb-green  { background: var(--green);  }
+.pb-orange { background: var(--orange); }
+.pb-red    { background: var(--red);    }
+
+/* ── Stats row ──────────────────────────────────────────────────────────────── */
+.stats-row { display: flex; gap: 28px; padding: 4px 0 12px; flex-wrap: wrap; }
+.stat { min-width: 80px; }
+.stat-val  { font-size: 22px; font-weight: 800; color: var(--blue);  line-height: 1.2; }
+.stat-lbl  { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 2px; }
+
+/* ── Build target cards ─────────────────────────────────────────────────────── */
+.target-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.target-card {
+  background: var(--bg3);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 16px;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+  user-select: none;
+}
+.target-card:hover  { border-color: rgba(79,195,247,0.5); }
+.target-card.sel    { border-color: var(--blue); background: rgba(79,195,247,0.08); }
+.tc-name { font-size: 17px; font-weight: 800; }
+.tc-hw   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.tc-badge {
+  display: inline-block; border-radius: 4px;
+  font-size: 10px; font-weight: 700; padding: 2px 6px; margin-top: 8px;
+}
+.tc-prod { background: var(--green);  color: #000; }
+.tc-exp  { background: var(--orange); color: #000; }
+.tc-ci   { background: var(--blue);   color: #000; }
+.tc-desc { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
+/* ── Terminal / log ─────────────────────────────────────────────────────────── */
+.terminal {
+  background: #080a0e;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: "Consolas", "Cascadia Code", "Monaco", monospace;
+  font-size: 12px;
+  height: 380px;
+  line-height: 1.55;
+  overflow-y: auto;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.l-note  { color: #4fc3f7; }
+.l-warn  { color: #ffd740; }
+.l-err   { color: #f44336; }
+.l-prog  { color: #4caf50; }
+.l-task  { color: #b0bec5; }
+.l-norm  { color: #78909c; }
+
+/* ── Selectable list items ──────────────────────────────────────────────────── */
+.sel-item {
+  align-items: center;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  gap: 14px;
+  margin-bottom: 8px;
+  padding: 12px 16px;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.sel-item:hover { border-color: rgba(79,195,247,0.4); }
+.sel-item.sel-blue   { border-color: var(--blue);   background: rgba(79,195,247,0.08); }
+.sel-item.sel-green  { border-color: var(--green);  background: rgba(76,175,80,0.08);  }
+.sel-item.sel-orange { border-color: var(--orange); background: rgba(255,152,0,0.08);  }
+.sel-icon  { font-size: 26px; line-height: 1; flex-shrink: 0; }
+.sel-info  { flex: 1; min-width: 0; }
+.sel-name  { font-weight: 700; }
+.sel-meta  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.sel-check { font-size: 20px; color: var(--blue); flex-shrink: 0; }
+
+/* ── Warning box ────────────────────────────────────────────────────────────── */
+.warn-box {
+  background: rgba(255,152,0,0.09);
+  border: 1px solid rgba(255,152,0,0.45);
+  border-radius: 8px;
+  color: #ffcc70;
+  margin: 14px 0;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── Alerts ─────────────────────────────────────────────────────────────────── */
+.alert { border-radius: 7px; padding: 10px 14px; font-size: 13px; margin-top: 10px; }
+.alert-ok  { background: rgba(76,175,80,0.12);  border: 1px solid rgba(76,175,80,0.35);  color: #81c784; }
+.alert-err { background: rgba(244,67,54,0.12);  border: 1px solid rgba(244,67,54,0.35);  color: #ef9a9a; }
+.alert-inf { background: rgba(79,195,247,0.1);  border: 1px solid rgba(79,195,247,0.3);  color: var(--blue); }
+
+/* ── Misc ───────────────────────────────────────────────────────────────────── */
+.flex        { display: flex; }
+.items-c     { align-items: center; }
+.gap-8       { gap: 8px; }
+.gap-12      { gap: 12px; }
+.ml-auto     { margin-left: auto; }
+.mt-4        { margin-top: 16px; }
+.mb-2        { margin-bottom: 8px; }
+.text-muted  { color: var(--muted); }
+.text-sm     { font-size: 12px; }
+.text-green  { color: var(--green); }
+.text-orange { color: var(--orange); }
+.hidden      { display: none !important; }
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-right: 6px;
+}
+.dot-idle    { background: var(--muted); }
+.dot-running { background: var(--green);  animation: pulse 1.2s ease-in-out infinite; }
+.dot-done    { background: var(--blue);   }
+.dot-error   { background: var(--red);    }
+@keyframes pulse {
+  0%,100% { opacity: 1; } 50% { opacity: 0.35; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════  HEADER  ════════════════════════════════ -->
+<header>
+  <div class="logo-mark">⚡</div>
+  <div>
+    <div class="logo-text">CCLRTE Builder</div>
+    <div class="logo-sub">CODESYS Control for Linux RTE · Raspberry Pi 5</div>
+  </div>
+  <span class="header-badge badge-idle" id="hdr-badge">Ready</span>
+</header>
+
+<!-- ═══════════════════════════════════  TABS  ═══════════════════════════════ -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('setup',this)">⚙ Setup</button>
+  <button class="tab-btn"        onclick="showTab('build',this)">🔨 Build</button>
+  <button class="tab-btn"        onclick="showTab('flash',this)">💾 Flash SD Card</button>
+</div>
+
+<!-- ════════════════════════  TAB: SETUP  ════════════════════════════════════ -->
+<div class="tab-pane active" id="pane-setup">
+
+  <!-- CODESYS package -->
+  <div class="card">
+    <div class="card-title">CODESYS Runtime Package</div>
+    <div id="codesys-status" class="text-muted mb-2">Checking…</div>
+    <div class="flex gap-8 items-c">
+      <input type="file" id="pkg-input" accept=".deb,.ipk" style="display:none" onchange="uploadPackage()">
+      <button class="btn btn-outline" onclick="document.getElementById('pkg-input').click()">
+        Upload .deb / .ipk
+      </button>
+      <span class="text-sm text-muted">
+        Obtain from <strong>store.codesys.com</strong> or your CODESYS IDE
+        (Tools → Update Raspberry Pi)
+      </span>
+    </div>
+    <div id="pkg-upload-msg"></div>
+  </div>
+
+  <!-- Network / Device configuration -->
+  <div class="card">
+    <div class="card-title">First-Boot Network &amp; Device Configuration</div>
+    <div class="form-grid">
+      <div>
+        <label class="form-label">Ethernet IP Address (eth0)</label>
+        <input id="cf-ETH0_IP" type="text" value="192.168.2.100">
+      </div>
+      <div>
+        <label class="form-label">Prefix Length (e.g. 24 = /24)</label>
+        <input id="cf-ETH0_PREFIX" type="text" value="24">
+      </div>
+      <div>
+        <label class="form-label">Default Gateway</label>
+        <input id="cf-ETH0_GW" type="text" value="192.168.2.1">
+      </div>
+      <div>
+        <label class="form-label">Device Hostname</label>
+        <input id="cf-DEVICE_HOSTNAME" type="text" value="cclrte-plc">
+      </div>
+      <div>
+        <label class="form-label">Root Password</label>
+        <input id="cf-DEVICE_PASSWORD" type="password" value="cclrte">
+      </div>
+      <div><!-- spacer --></div>
+      <div>
+        <label class="form-label">WiFi SSID (optional — leave blank to skip)</label>
+        <input id="cf-WIFI_SSID" type="text" placeholder="MyNetwork">
+      </div>
+      <div>
+        <label class="form-label">WiFi Password</label>
+        <input id="cf-WIFI_PASSWORD" type="password" placeholder="">
+      </div>
+      <div>
+        <label class="form-label">WiFi Country Code</label>
+        <input id="cf-WIFI_COUNTRY" type="text" value="IN" maxlength="2">
+      </div>
+      <div>
+        <label class="form-label">WLAN Static IP (optional — blank = DHCP)</label>
+        <input id="cf-WLAN_IP" type="text" placeholder="192.168.1.50">
+      </div>
+      <div class="form-full">
+        <label class="form-label">SSH Authorized Key (optional — for passwordless login)</label>
+        <textarea id="cf-SSH_AUTHORIZED_KEY" placeholder="ssh-ed25519 AAAA… user@host"></textarea>
+      </div>
+    </div>
+    <div class="flex gap-8 items-c mt-4">
+      <button class="btn btn-primary" onclick="saveSiteConf()">Save Configuration</button>
+      <span class="text-sm text-muted">Writes to config/site.conf — applied on first boot</span>
+    </div>
+    <div id="setup-msg"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════  TAB: BUILD  ════════════════════════════════════ -->
+<div class="tab-pane" id="pane-build">
+
+  <!-- Target selector -->
+  <div class="card">
+    <div class="card-title">Build Target</div>
+    <div class="target-grid">
+      <div class="target-card sel" id="tc-preempt-rt" onclick="selectTarget('preempt-rt',this)">
+        <div class="tc-name">PREEMPT‑RT</div>
+        <div class="tc-hw">Raspberry Pi 5 · 64-bit</div>
+        <div><span class="tc-badge tc-prod">Production</span></div>
+        <div class="tc-desc">&lt; 100 µs worst-case<br>PREEMPT_RT kernel 6.6.y</div>
+      </div>
+      <div class="target-card" id="tc-xenomai" onclick="selectTarget('xenomai',this)">
+        <div class="tc-name">Xenomai</div>
+        <div class="tc-hw">Raspberry Pi 5 · 64-bit</div>
+        <div><span class="tc-badge tc-exp">Experimental</span></div>
+        <div class="tc-desc">2–15 µs worst-case<br>Xenomai Cobalt / Dovetail</div>
+      </div>
+      <div class="target-card" id="tc-qemu" onclick="selectTarget('qemu',this)">
+        <div class="tc-name">QEMU</div>
+        <div class="tc-hw">x86-64 · no hardware needed</div>
+        <div><span class="tc-badge tc-ci">CI / Test</span></div>
+        <div class="tc-desc">Fast CI image<br>No SD card required</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="flex gap-12 items-c mb-2">
+    <button class="btn btn-success" id="btn-start" onclick="startBuild()">▶ Start Build</button>
+    <button class="btn btn-danger"  id="btn-cancel" onclick="cancelBuild()" disabled>⏹ Cancel</button>
+    <span class="text-sm text-muted">
+      First build: 4–8 hours &nbsp;·&nbsp; Incremental (cached): 20–60 min
+    </span>
+  </div>
+
+  <!-- Progress card -->
+  <div class="card">
+    <div class="card-title">Build Progress</div>
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-val" id="s-pct">0%</div>
+        <div class="stat-lbl">Progress</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="s-tasks">—</div>
+        <div class="stat-lbl">Tasks</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="s-elapsed">00:00:00</div>
+        <div class="stat-lbl">Elapsed</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="s-status" style="color:var(--muted)">
+          <span class="dot dot-idle" id="s-dot"></span>Idle
+        </div>
+        <div class="stat-lbl">Status</div>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar pb-blue" id="build-bar" style="width:0%"></div>
+    </div>
+    <div class="text-sm text-muted mt-4" id="s-task-lbl"></div>
+  </div>
+
+  <!-- Log terminal -->
+  <div class="card">
+    <div class="flex items-c mb-2">
+      <div class="card-title" style="margin:0">Build Log</div>
+      <div class="ml-auto flex gap-8 items-c">
+        <label class="flex items-c gap-8 text-sm text-muted" style="cursor:pointer;margin:0">
+          <input type="checkbox" id="autoscroll" checked> Auto-scroll
+        </label>
+        <button class="btn btn-outline btn-sm" onclick="clearLog()">Clear</button>
+      </div>
+    </div>
+    <div class="terminal" id="log-terminal"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════  TAB: FLASH  ════════════════════════════════════ -->
+<div class="tab-pane" id="pane-flash">
+
+  <!-- Built images -->
+  <div class="card">
+    <div class="card-title">Built Image</div>
+    <div id="images-list">
+      <div class="text-muted">No images found. Complete a build first.</div>
+    </div>
+  </div>
+
+  <!-- Target drive -->
+  <div class="card">
+    <div class="flex items-c mb-2" style="margin-bottom:14px">
+      <div class="card-title" style="margin:0">Target SD Card Drive</div>
+      <button class="btn btn-outline btn-sm ml-auto" onclick="refreshDrives()">↻ Refresh</button>
+    </div>
+    <div id="drives-list">
+      <div class="text-muted">Insert your SD card and click Refresh.</div>
+    </div>
+    <div class="text-sm text-muted mt-4" style="margin-top:10px;line-height:1.7">
+      💡 Only removable / hot-plug drives are listed (SD cards, USB sticks).<br>
+      <span id="platform-note"></span>
+    </div>
+  </div>
+
+  <div class="warn-box">
+    ⚠️ <strong>WARNING:</strong> Flashing will permanently and irreversibly erase
+    <strong>all data</strong> on the selected drive. Double-check you have selected
+    the correct device before proceeding.
+  </div>
+
+  <!-- Flash action -->
+  <div class="flex gap-12 items-c">
+    <button class="btn btn-warn" id="btn-flash" onclick="startFlash()" disabled>
+      💾 Flash SD Card
+    </button>
+    <span id="flash-status-txt" class="text-sm text-muted"></span>
+  </div>
+
+  <!-- Flash progress (hidden until started) -->
+  <div class="card hidden mt-4" id="flash-progress-card">
+    <div class="card-title">Flash Progress</div>
+    <div class="progress-wrap">
+      <div class="progress-bar pb-orange" id="flash-bar" style="width:0%"></div>
+    </div>
+    <div class="text-sm text-muted mt-4" id="flash-msg" style="font-family:monospace;margin-top:8px"></div>
+  </div>
+
+  <!-- Download image (for Windows users) -->
+  <div class="card mt-4">
+    <div class="card-title">Download Image (Windows / macOS)</div>
+    <div class="text-sm text-muted" style="margin-bottom:12px;line-height:1.7">
+      On Windows and macOS, Docker containers cannot directly access USB SD card
+      readers. Download the built image and flash it with
+      <a href="https://etcher.balena.io" target="_blank" style="color:var(--blue)">Balena Etcher</a>
+      (free, works on Windows/macOS/Linux).
+    </div>
+    <div id="download-list">
+      <div class="text-muted text-sm">No images available yet.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════  JAVASCRIPT  ══════════════════════════════ -->
+<script>
+"use strict";
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeTarget   = "preempt-rt";
+let selectedImage  = null;
+let selectedDrive  = null;
+let logLinePos     = 0;      // highest log index seen
+let sseConn        = null;
+let elapsedTick    = null;
+let buildStartTime = null;
+let flashPollTick  = null;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function showTab(name, btn) {
+  document.querySelectorAll(".tab-pane").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("pane-" + name).classList.add("active");
+  btn.classList.add("active");
+  if (name === "flash") { loadImages(); }
+}
+
+// ── Setup tab ─────────────────────────────────────────────────────────────────
+async function loadSiteConf() {
+  try {
+    const r = await fetch("/api/site_conf");
+    const cfg = await r.json();
+    const KEYS = [
+      "ETH0_IP","ETH0_PREFIX","ETH0_GW","DEVICE_HOSTNAME","DEVICE_PASSWORD",
+      "WIFI_SSID","WIFI_PASSWORD","WIFI_COUNTRY",
+      "WLAN_IP","SSH_AUTHORIZED_KEY"
+    ];
+    KEYS.forEach(k => {
+      const el = document.getElementById("cf-" + k);
+      if (el && cfg[k] !== undefined) el.value = cfg[k];
+    });
+  } catch (_) {}
+}
+
+async function saveSiteConf() {
+  const KEYS = [
+    "ETH0_IP","ETH0_PREFIX","ETH0_GW","DEVICE_HOSTNAME","DEVICE_PASSWORD",
+    "WIFI_SSID","WIFI_PASSWORD","WIFI_COUNTRY",
+    "WLAN_IP","SSH_AUTHORIZED_KEY"
+  ];
+  const data = {};
+  KEYS.forEach(k => {
+    const el = document.getElementById("cf-" + k);
+    if (el) data[k] = el.value;
+  });
+  try {
+    const r = await fetch("/api/site_conf", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(data),
+    });
+    const msg = document.getElementById("setup-msg");
+    if (r.ok) {
+      msg.innerHTML = '<div class="alert alert-ok">✓ Saved to config/site.conf — will be applied on first boot.</div>';
+      setTimeout(() => msg.innerHTML = "", 4000);
+    } else {
+      msg.innerHTML = '<div class="alert alert-err">✗ Save failed.</div>';
+    }
+  } catch (e) {
+    document.getElementById("setup-msg").innerHTML =
+      `<div class="alert alert-err">✗ ${e}</div>`;
+  }
+}
+
+async function uploadPackage() {
+  const file = document.getElementById("pkg-input").files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  const msgEl = document.getElementById("pkg-upload-msg");
+  msgEl.innerHTML = '<div class="alert alert-inf">Uploading…</div>';
+  try {
+    const r = await fetch("/api/upload_package", {method: "POST", body: fd});
+    if (r.ok) {
+      msgEl.innerHTML = `<div class="alert alert-ok">✓ ${file.name} uploaded to data/</div>`;
+      refreshCodesysStatus();
+    } else {
+      const j = await r.json();
+      msgEl.innerHTML = `<div class="alert alert-err">✗ ${j.error}</div>`;
+    }
+  } catch (e) {
+    msgEl.innerHTML = `<div class="alert alert-err">✗ ${e}</div>`;
+  }
+  setTimeout(() => msgEl.innerHTML = "", 5000);
+}
+
+function refreshCodesysStatus() {
+  fetch("/api/status").then(r => r.json()).then(s => {
+    const el = document.getElementById("codesys-status");
+    const pkgs = s.codesys_packages || [];
+    if (pkgs.length) {
+      el.innerHTML = `<span class="text-green">✓ Found: ${pkgs.join(", ")}</span>`;
+    } else {
+      el.innerHTML =
+        '<span class="text-orange">⚠ No .deb or .ipk found in data/ — ' +
+        'upload one to enable runtime auto-install on first boot.</span>';
+    }
+  });
+}
+
+// ── Build tab ─────────────────────────────────────────────────────────────────
+function selectTarget(t, card) {
+  document.querySelectorAll(".target-card").forEach(c => c.classList.remove("sel"));
+  card.classList.add("sel");
+  activeTarget = t;
+}
+
+async function startBuild() {
+  const r = await fetch("/api/build/start", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({target: activeTarget}),
+  });
+  if (!r.ok) {
+    const j = await r.json();
+    alert("Cannot start build: " + j.error);
+    return;
+  }
+  clearLog();
+  logLinePos = 0;
+  setBuildRunning(true);
+  startElapsedTimer();
+  connectSSE();
+}
+
+async function cancelBuild() {
+  if (!confirm("Cancel the running build?")) return;
+  await fetch("/api/build/cancel", {method: "POST"});
+  stopElapsedTimer();
+  setBuildRunning(false);
+}
+
+function setBuildRunning(running) {
+  document.getElementById("btn-start").disabled  =  running;
+  document.getElementById("btn-cancel").disabled = !running;
+}
+
+// ── SSE log stream ────────────────────────────────────────────────────────────
+function connectSSE() {
+  if (sseConn) { sseConn.close(); sseConn = null; }
+  sseConn = new EventSource("/api/build/log?since=" + logLinePos);
+
+  sseConn.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.t === "l") {
+      appendLog(msg.v);
+      logLinePos = msg.i + 1;
+      parseProgressFromLine(msg.v);
+    } else if (msg.t === "done") {
+      sseConn.close(); sseConn = null;
+      applyBuildDone(msg.status);
+      stopElapsedTimer();
+    }
+    // "ping" messages are intentionally ignored
+  };
+
+  sseConn.onerror = () => {
+    // Reconnect if build still shows running in the header
+    setTimeout(() => {
+      const badge = document.getElementById("hdr-badge");
+      if (badge.textContent.includes("Building")) connectSSE();
+    }, 2500);
+  };
+}
+
+function parseProgressFromLine(line) {
+  const m = line.match(/Currently \d+ running tasks?\s*\((\d+) of (\d+)\)/);
+  if (m) {
+    const done = parseInt(m[1]), total = parseInt(m[2]);
+    setProgress(Math.min(99, Math.round(done / total * 100)), done, total);
+  }
+}
+
+function appendLog(line) {
+  const term = document.getElementById("log-terminal");
+  const div  = document.createElement("div");
+
+  if      (/^ERROR:/.test(line))                         div.className = "l-err";
+  else if (/^WARNING:/.test(line))                       div.className = "l-warn";
+  else if (/^NOTE:/.test(line))                          div.className = "l-note";
+  else if (/Currently \d+ running tasks/.test(line))     div.className = "l-prog";
+  else if (/Executing tasks|recipe .+: task do_/.test(line)) div.className = "l-task";
+  else                                                   div.className = "l-norm";
+
+  div.textContent = line;
+  term.appendChild(div);
+
+  if (document.getElementById("autoscroll").checked) {
+    term.scrollTop = term.scrollHeight;
+  }
+}
+
+function clearLog() {
+  document.getElementById("log-terminal").innerHTML = "";
+  logLinePos = 0;
+}
+
+function setProgress(pct, done, total) {
+  document.getElementById("build-bar").style.width = pct + "%";
+  document.getElementById("s-pct").textContent = pct + "%";
+  if (done != null && total != null) {
+    document.getElementById("s-tasks").textContent = done + "/" + total;
+  }
+}
+
+function applyBuildDone(status) {
+  setBuildRunning(false);
+  const bar    = document.getElementById("build-bar");
+  const badge  = document.getElementById("hdr-badge");
+  const dotEl  = document.getElementById("s-dot");
+  const statEl = document.getElementById("s-status");
+
+  if (status === "done") {
+    bar.className    = "progress-bar pb-green";
+    bar.style.width  = "100%";
+    badge.className  = "header-badge badge-done";
+    badge.textContent = "Build Done";
+    dotEl.className  = "dot dot-done";
+    statEl.innerHTML = '<span class="dot dot-done"></span>Done';
+    document.getElementById("s-pct").textContent   = "100%";
+    loadImages();
+  } else {
+    bar.className    = "progress-bar pb-red";
+    badge.className  = "header-badge badge-error";
+    badge.textContent = "Error";
+    dotEl.className  = "dot dot-error";
+    statEl.innerHTML = '<span class="dot dot-error"></span>Error';
+  }
+}
+
+// ── Elapsed timer ─────────────────────────────────────────────────────────────
+function startElapsedTimer() {
+  buildStartTime = Date.now();
+  // Update header badge and status indicators
+  document.getElementById("hdr-badge").className  = "header-badge badge-running";
+  document.getElementById("hdr-badge").textContent = "Building";
+  document.getElementById("s-dot").className       = "dot dot-running";
+  document.getElementById("s-status").innerHTML    =
+    '<span class="dot dot-running"></span>Building';
+
+  elapsedTick = setInterval(() => {
+    const secs = Math.floor((Date.now() - buildStartTime) / 1000);
+    const h = String(Math.floor(secs / 3600)).padStart(2, "0");
+    const m = String(Math.floor(secs % 3600 / 60)).padStart(2, "0");
+    const s = String(secs % 60).padStart(2, "0");
+    document.getElementById("s-elapsed").textContent = `${h}:${m}:${s}`;
+  }, 1000);
+}
+
+function stopElapsedTimer() {
+  if (elapsedTick) { clearInterval(elapsedTick); elapsedTick = null; }
+}
+
+// ── Flash tab ─────────────────────────────────────────────────────────────────
+async function loadImages() {
+  try {
+    const r = await fetch("/api/status");
+    const s = await r.json();
+    const imgs = s.images || [];
+    renderImages(imgs);
+    renderDownloads(imgs);
+  } catch (_) {}
+}
+
+function renderImages(imgs) {
+  const el = document.getElementById("images-list");
+  if (!imgs.length) {
+    el.innerHTML = '<div class="text-muted">No built images found. Complete a build first.</div>';
+    return;
+  }
+  el.innerHTML = imgs.map(img => `
+    <div class="sel-item ${selectedImage === img.path ? "sel-green" : ""}"
+         onclick="pickImage(${JSON.stringify(img.path)}, this)">
+      <div class="sel-icon">📀</div>
+      <div class="sel-info">
+        <div class="sel-name">${img.name}</div>
+        <div class="sel-meta">${img.size_mb} MB &nbsp;·&nbsp; ${img.date}</div>
+      </div>
+      <div class="sel-check">${selectedImage === img.path ? "✓" : ""}</div>
+    </div>`).join("");
+  if (!selectedImage && imgs.length) pickImageByPath(imgs[0].path);
+}
+
+function renderDownloads(imgs) {
+  const el = document.getElementById("download-list");
+  if (!imgs.length) {
+    el.innerHTML = '<div class="text-muted text-sm">No images available yet.</div>';
+    return;
+  }
+  el.innerHTML = imgs.map(img => `
+    <a class="btn btn-outline btn-sm" style="display:inline-block;margin-bottom:6px;text-decoration:none"
+       href="/api/download_image?path=${encodeURIComponent(img.path)}">
+      ⬇ ${img.name} (${img.size_mb} MB)
+    </a>`).join(" ");
+}
+
+function pickImage(path, card) {
+  document.querySelectorAll("#images-list .sel-item").forEach(c => {
+    c.classList.remove("sel-green");
+    c.querySelector(".sel-check").textContent = "";
+  });
+  card.classList.add("sel-green");
+  card.querySelector(".sel-check").textContent = "✓";
+  selectedImage = path;
+  checkFlashReady();
+}
+
+function pickImageByPath(path) {
+  selectedImage = path;
+  checkFlashReady();
+}
+
+async function refreshDrives() {
+  const el = document.getElementById("drives-list");
+  el.innerHTML = '<div class="text-muted">Scanning…</div>';
+  try {
+    const r = await fetch("/api/drives");
+    const d = await r.json();
+
+    if (d.platform_note) {
+      document.getElementById("platform-note").textContent = d.platform_note;
+    }
+    if (d.error) {
+      el.innerHTML = `<div class="alert alert-err">${d.error}</div>`;
+      return;
+    }
+    if (!d.drives.length) {
+      el.innerHTML =
+        '<div class="text-muted">No removable drives found. ' +
+        'Insert SD card then click Refresh.</div>';
+      return;
+    }
+
+    el.innerHTML = d.drives.map(drv => `
+      <div class="sel-item ${selectedDrive === drv.path ? "sel-blue" : ""}"
+           onclick="pickDrive(${JSON.stringify(drv.path)}, this)">
+        <div class="sel-icon">💾</div>
+        <div class="sel-info">
+          <div class="sel-name">${drv.path}</div>
+          <div class="sel-meta">
+            ${drv.size} &nbsp;·&nbsp; ${drv.vendor} ${drv.model}
+            &nbsp;·&nbsp; ${drv.tran}
+          </div>
+        </div>
+        <div class="sel-check">${selectedDrive === drv.path ? "✓" : ""}</div>
+      </div>`).join("");
+  } catch (e) {
+    el.innerHTML = `<div class="alert alert-err">Error: ${e}</div>`;
+  }
+}
+
+function pickDrive(path, card) {
+  document.querySelectorAll("#drives-list .sel-item").forEach(c => {
+    c.classList.remove("sel-blue");
+    c.querySelector(".sel-check").textContent = "";
+  });
+  card.classList.add("sel-blue");
+  card.querySelector(".sel-check").textContent = "✓";
+  selectedDrive = path;
+  checkFlashReady();
+}
+
+function checkFlashReady() {
+  document.getElementById("btn-flash").disabled = !(selectedImage && selectedDrive);
+}
+
+async function startFlash() {
+  if (!selectedImage || !selectedDrive) return;
+
+  const imageName = selectedImage.split("/").pop();
+  const ok = confirm(
+    "⚠️ FINAL WARNING\n\n" +
+    "ALL DATA ON THE SELECTED DRIVE WILL BE PERMANENTLY ERASED.\n\n" +
+    "  Drive : " + selectedDrive + "\n" +
+    "  Image : " + imageName + "\n\n" +
+    "This cannot be undone. Are you absolutely sure?"
+  );
+  if (!ok) return;
+
+  document.getElementById("btn-flash").disabled = true;
+  document.getElementById("flash-progress-card").classList.remove("hidden");
+  document.getElementById("flash-bar").className     = "progress-bar pb-orange";
+  document.getElementById("flash-bar").style.width   = "0%";
+  document.getElementById("flash-msg").textContent   = "Starting flash…";
+  document.getElementById("flash-status-txt").textContent = "Flashing…";
+
+  try {
+    const r = await fetch("/api/flash/start", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({device: selectedDrive, image: selectedImage}),
+    });
+    if (!r.ok) {
+      const j = await r.json();
+      alert("Flash error: " + j.error);
+      document.getElementById("btn-flash").disabled = false;
+      return;
+    }
+  } catch (e) {
+    alert("Flash error: " + e);
+    document.getElementById("btn-flash").disabled = false;
+    return;
+  }
+
+  // Poll status until done or error
+  flashPollTick = setInterval(async () => {
+    const r = await fetch("/api/status");
+    const s = await r.json();
+    const f = s.flash;
+
+    document.getElementById("flash-bar").style.width = f.progress + "%";
+    document.getElementById("flash-msg").textContent = f.message;
+    document.getElementById("flash-status-txt").textContent = f.message;
+
+    if (f.status === "done") {
+      clearInterval(flashPollTick);
+      document.getElementById("flash-bar").className     = "progress-bar pb-green";
+      document.getElementById("flash-status-txt").style.color = "var(--green)";
+      document.getElementById("btn-flash").disabled = false;
+    } else if (f.status === "error") {
+      clearInterval(flashPollTick);
+      document.getElementById("flash-bar").className     = "progress-bar pb-red";
+      document.getElementById("flash-status-txt").style.color = "var(--red)";
+      document.getElementById("btn-flash").disabled = false;
+    }
+  }, 600);
+}
+
+// ── Global status poll (build resumption + codesys status) ────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch("/api/status");
+    const s = await r.json();
+    const b = s.build;
+
+    // Resume UI if a build was running before the page loaded
+    if (b.status === "running" && !sseConn) {
+      setBuildRunning(true);
+      logLinePos = 0;
+      buildStartTime = Date.now() - (b.elapsed || 0) * 1000;
+      startElapsedTimer();
+      connectSSE();
+    }
+
+    if (b.status === "done" && !sseConn) {
+      applyBuildDone("done");
+    }
+
+    // Update progress stats if available
+    if (b.tasks_total > 0) {
+      setProgress(b.progress, b.tasks_done, b.tasks_total);
+    }
+
+    // Codesys package indicator in Setup tab
+    const pkgs = s.codesys_packages || [];
+    const pkgEl = document.getElementById("codesys-status");
+    if (pkgEl && pkgEl.textContent !== "Checking…" || pkgs.length) {
+      pkgEl.innerHTML = pkgs.length
+        ? `<span class="text-green">✓ ${pkgs.join(", ")}</span>`
+        : '<span class="text-orange">⚠ No .deb / .ipk in data/ — CODESYS runtime will not auto-install.</span>';
+    }
+  } catch (_) {}
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadSiteConf();
+pollStatus();
+setInterval(pollStatus, 6000);
+</script>
+
+</body>
+</html>

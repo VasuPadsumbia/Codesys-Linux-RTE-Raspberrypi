@@ -1,0 +1,29 @@
+# KAS overlay — Docker-specific overrides
+#
+# Usage (appended after the target config):
+#   kas build kas/rpi5-64.yml:kas/docker.yml
+#   kas build kas/rpi5-xenomai.yml:kas/docker.yml
+#   kas build kas/qemu-x86-64.yml:kas/docker.yml
+#
+# What this file does:
+#   1. Replaces SSH git:// URLs with HTTPS — Docker containers have no SSH keys.
+#   2. Redirects DL_DIR and SSTATE_DIR to the Docker-volume-backed /build-cache/
+#      for fast I/O (bypasses the slow virtio-fs Windows ↔ WSL2 boundary).
+
+header:
+  version: 14
+
+repos:
+  # base.yml uses git@github.com:openembedded/... — override to HTTPS
+  meta-openembedded:
+    url: https://github.com/openembedded/meta-openembedded
+
+  # rpi5-64.yml and rpi5-xenomai.yml use git@github.com:agherzan/... — override to HTTPS
+  meta-raspberrypi:
+    url: https://github.com/agherzan/meta-raspberrypi
+
+local_conf_header:
+  # Hard-assign (= not ?=) so these override the ?= defaults in base.yml
+  docker_cache: |
+    DL_DIR    = "/build-cache/downloads"
+    SSTATE_DIR = "/build-cache/sstate-cache"

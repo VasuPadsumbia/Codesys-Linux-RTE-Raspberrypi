@@ -1,0 +1,54 @@
+{
+  "name": "CCLRTE Builder",
+
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  // Mount workspace at /workspace (server.py expects this path)
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+
+  // Persistent Yocto caches — Docker named volumes survive container rebuilds.
+  // downloads ~20 GB, sstate-cache ~50 GB, build ~80 GB.
+  "mounts": [
+    "source=cclrte_downloads,target=/build-cache/downloads,type=volume",
+    "source=cclrte_sstate,target=/build-cache/sstate-cache,type=volume",
+    "source=cclrte_build,target=/build-cache/build,type=volume"
+  ],
+
+  // Builder GUI — opens automatically in browser on port 5000
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": {
+      "label": "CCLRTE Builder GUI",
+      "onAutoForward": "openBrowser"
+    }
+  },
+
+  "remoteEnv": {
+    "WORKSPACE": "/workspace",
+    "BUILD_CACHE_DIR": "/build-cache",
+    "KAS_BUILD_DIR": "/build-cache/build",
+    "PYTHONUNBUFFERED": "1"
+  },
+
+  // Start the Flask GUI server as a background service when the container opens
+  "postStartCommand": "bash -c 'python3 /workspace/builder/server.py > /tmp/cclrte-gui.log 2>&1 &'",
+
+  "remoteUser": "builder",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python.defaultInterpreterPath": "/usr/bin/python3"
+      }
+    }
+  }
+}
