@@ -1,0 +1,13 @@
+[Unit]
+Description=Modbus TCP Gateway on eth1
+After=network.target
+ConditionPathExists=/usr/sbin/modbus-tcp-server.py
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/sbin/modbus-tcp-server.py --iface eth1 --port 502
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

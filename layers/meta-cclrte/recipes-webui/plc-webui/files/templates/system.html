@@ -25,26 +25,71 @@
     <div class="card-body">
       {% if rt_result %}
       <div class="rt-result {% if rt_result.status == 'PASS' %}rt-pass{% else %}rt-fail{% endif %}">
-        <strong>{{ rt_result.status }}</strong> &#8212; worst {{ rt_result.worst_max_us }} &#181;s
+        <strong>{{ rt_result.status }}</strong> &#8212; worst-case {{ rt_result.worst_max_us }} &#181;s
         (threshold {{ rt_result.threshold_us }} &#181;s)
+        {% if rt_result.ethercat_jitter_us %}&nbsp;&#8226;&nbsp;EtherCAT jitter {{ rt_result.ethercat_jitter_us }} &#181;s{% endif %}
       </div>
+
+      {% if rt_result.cpu2_ethercat and rt_result.cpu2_ethercat.idle is defined %}
+      {# New format: idle/load phases #}
+      <table style="width:100%;margin-top:0.6rem;font-size:0.83rem;border-collapse:collapse">
+        <tr style="background:#f5f5f5">
+          <th style="text-align:left;padding:3px 6px">Core</th>
+          <th style="padding:3px 6px">Phase</th>
+          <th style="padding:3px 6px">Min &#181;s</th>
+          <th style="padding:3px 6px">Avg &#181;s</th>
+          <th style="padding:3px 6px">Max &#181;s</th>
+        </tr>
+        <tr>
+          <td rowspan="2" style="padding:3px 6px;font-weight:bold">CPU2<br><small>EtherCAT<br>FIFO&nbsp;90</small></td>
+          <td style="padding:3px 6px;color:#27ae60">&#9675; Idle (best)</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu2_ethercat.idle.min_us }}</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu2_ethercat.idle.avg_us }}</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu2_ethercat.idle.max_us }}</td>
+        </tr>
+        <tr style="background:#fff8f8">
+          <td style="padding:3px 6px;color:#e74c3c">&#9679; Load (worst)</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu2_ethercat.load.min_us }}</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu2_ethercat.load.avg_us }}</td>
+          <td style="padding:3px 6px"><strong>{{ rt_result.cpu2_ethercat.load.max_us }}</strong></td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td rowspan="2" style="padding:3px 6px;font-weight:bold">CPU3<br><small>CODESYS<br>FIFO&nbsp;80</small></td>
+          <td style="padding:3px 6px;color:#27ae60">&#9675; Idle (best)</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu3_codesys.idle.min_us }}</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu3_codesys.idle.avg_us }}</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu3_codesys.idle.max_us }}</td>
+        </tr>
+        <tr style="background:#fff8f8">
+          <td style="padding:3px 6px;color:#e74c3c">&#9679; Load (worst)</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu3_codesys.load.min_us }}</td>
+          <td style="padding:3px 6px">{{ rt_result.cpu3_codesys.load.avg_us }}</td>
+          <td style="padding:3px 6px"><strong>{{ rt_result.cpu3_codesys.load.max_us }}</strong></td>
+        </tr>
+      </table>
+      <p class="info-muted" style="font-size:0.78rem;margin-top:0.4rem">
+        {{ rt_result.timestamp }} &mdash; idle: {{ rt_result.idle_sec }}s, load: {{ rt_result.load_sec }}s (stress-ng on CPU0,1)
+      </p>
+      {% else %}
+      {# Legacy format fallback #}
       <table style="width:100%;margin-top:0.6rem;font-size:0.85rem;border-collapse:collapse">
-        <tr><th style="text-align:left;padding:2px 6px">Core</th><th style="padding:2px 6px">Max &#181;s</th><th style="padding:2px 6px">Avg &#181;s</th><th style="padding:2px 6px">Priority</th></tr>
-        <tr><td style="padding:2px 6px">CPU0+1 (OS) SMP</td>  <td style="padding:2px 6px">{{ rt_result.smp_max_us }}</td>  <td>—</td><td style="padding:2px 6px">FIFO 80</td></tr>
+        <tr><th style="text-align:left;padding:2px 6px">Core</th><th>Max &#181;s</th><th>Avg &#181;s</th><th>Priority</th></tr>
         {% if rt_result.cpu2_ethercat %}
-        <tr><td style="padding:2px 6px">CPU2 (EtherCAT)</td>  <td style="padding:2px 6px">{{ rt_result.cpu2_ethercat.max_us }}</td>  <td style="padding:2px 6px">{{ rt_result.cpu2_ethercat.avg_us }}</td>  <td style="padding:2px 6px">FIFO {{ rt_result.cpu2_ethercat.priority }}</td></tr>
-        <tr><td style="padding:2px 6px">CPU3 (CODESYS)</td>   <td style="padding:2px 6px">{{ rt_result.cpu3_codesys.max_us }}</td>   <td style="padding:2px 6px">{{ rt_result.cpu3_codesys.avg_us }}</td>   <td style="padding:2px 6px">FIFO {{ rt_result.cpu3_codesys.priority }}</td></tr>
+        <tr><td style="padding:2px 6px">CPU2 EtherCAT</td><td>{{ rt_result.cpu2_ethercat.max_us }}</td><td>{{ rt_result.cpu2_ethercat.avg_us }}</td><td>FIFO 90</td></tr>
+        <tr><td style="padding:2px 6px">CPU3 CODESYS</td><td>{{ rt_result.cpu3_codesys.max_us }}</td><td>{{ rt_result.cpu3_codesys.avg_us }}</td><td>FIFO 80</td></tr>
         {% endif %}
       </table>
-      <p class="info-muted" style="font-size:0.8rem;margin-top:0.4rem">{{ rt_result.timestamp }} &mdash; {{ rt_result.duration_sec }}s per phase</p>
+      <p class="info-muted" style="font-size:0.8rem;margin-top:0.4rem">{{ rt_result.timestamp }}</p>
+      {% endif %}
+
       {% else %}
       <p class="info-muted">Not yet run.</p>
       {% endif %}
       <form method="POST" style="margin-top:0.75rem">
         <input type="hidden" name="action" value="rt_verify">
-        <button type="submit" class="btn btn-secondary">Run cyclictest (~3 min)</button>
+        <button type="submit" class="btn btn-secondary">Run cyclictest (~1 min)</button>
       </form>
-      <p class="info-muted">Tests CPU2 (EtherCAT FIFO 90) and CPU3 (CODESYS FIFO 80) independently. CODESYS/EtherCAT do not need to be running.</p>
+      <p class="info-muted">Idle phase (best case) + stress-ng load phase (worst case). CODESYS/EtherCAT do not need to be running.</p>
     </div>
   </div>
 

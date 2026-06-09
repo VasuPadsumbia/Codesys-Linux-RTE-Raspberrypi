@@ -37,6 +37,17 @@ enable_uart=1
 dtparam=spi=on
 dtparam=i2c_arm=on
 
+# ── Active cooler (RPi5 official fan / GPIO fan) ──────────────────────────────
+# dtoverlay=gpio-fan: GPIO-controlled fan. pin=14 = GPIO14 (BCM), temp=60000 = 60°C
+# Adjust gpio_pin to match your fan wiring. fan-control.service manages PWM speed.
+dtoverlay=gpio-fan,gpiopin=14,temp=60000
+
+# ── PCIe — Waveshare RTL8111H EtherCAT NIC (HAT+ FPC connector) ──────────────
+# pciex1=on      : enable the BCM2712 external PCIe x1 FPC connector
+# pciex1_gen=2   : lock at PCIe Gen 2 (5 GT/s) for deterministic DMA latency
+dtparam=pciex1=on
+dtparam=pciex1_gen=2
+
 # ── Boot ──────────────────────────────────────────────────────────────────────
 disable_splash=1
 disable_overscan=1

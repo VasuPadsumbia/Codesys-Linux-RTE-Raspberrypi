@@ -77,9 +77,13 @@ fi
 # ── RAM ───────────────────────────────────────────────────────────────────────
 RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 RAM_GB=$(( RAM_KB / 1024 / 1024 ))
-if [[ "$RAM_GB" -lt 8 ]]; then
-    error "RAM: ${RAM_GB} GB — minimum 8 GB required for Yocto builds"
+if [[ "$RAM_GB" -lt 6 ]]; then
+    error "RAM: ${RAM_GB} GB — minimum 6 GB required for Yocto builds"
     track_error
+elif [[ "$RAM_GB" -lt 8 ]]; then
+    warn  "RAM: ${RAM_GB} GB — 8 GB recommended; limit parallelism: BB_NUMBER_THREADS = \"4\" PARALLEL_MAKE = \"-j4\""
+    warn  "  WSL2: add 'memory=12GB' to %USERPROFILE%\\.wslconfig and restart WSL"
+    track_warning
 elif [[ "$RAM_GB" -lt 16 ]]; then
     warn  "RAM: ${RAM_GB} GB — 16 GB recommended (builds may be slow)"
     track_warning

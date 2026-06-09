@@ -1,0 +1,15 @@
+[Unit]
+Description=CCLRTE Active Cooler Fan Control
+After=sysinit.target
+DefaultDependencies=no
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/fan-control.sh
+Restart=always
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

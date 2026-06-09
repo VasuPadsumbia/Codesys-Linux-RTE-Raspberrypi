@@ -31,12 +31,12 @@ if [[ -x /opt/codesys/bin/codesyscontrol ]]; then
     exit 0
 fi
 
-# Locate bundled packages
-DEB=$(find "$PKG_DIR" -name "*.deb" 2>/dev/null | sort | tail -1)
+# Locate bundled packages — exclude codemeter (handled separately below)
+DEB=$(find "$PKG_DIR" -name "codesys*.deb" 2>/dev/null | sort | tail -1)
 IPK=$(find "$PKG_DIR" -name "*.ipk" 2>/dev/null | sort | tail -1)
 
 if [[ -z "$DEB" && -z "$IPK" ]]; then
-    log "No packages found in $PKG_DIR"
+    log "No CODESYS packages found in $PKG_DIR"
     log "Install manually: /usr/sbin/install-codesys-runtime.sh /path/to/package.deb /path/to/package.ipk"
     exit 1
 fi
@@ -45,7 +45,27 @@ log "Starting CODESYS runtime installation from bundled packages"
 [[ -n "$DEB" ]] && log "  .deb: $DEB"
 [[ -n "$IPK" ]] && log "  .ipk: $IPK"
 
-# Install — .deb first (binary), then .ipk (component libraries + post-install data)
+# Install CodeMeter-lite — extract directly without install-codesys-runtime.sh which
+# validates for the codesyscontrol binary and fails on non-CODESYS debs.
+CM_DEB=$(find "$PKG_DIR" -name "codemeter*.deb" 2>/dev/null | sort | tail -1)
+if [[ -n "$CM_DEB" ]]; then
+    log "Installing CodeMeter-lite: $(basename "$CM_DEB")"
+    TMPDIR_CM=$(mktemp -d)
+    (cd "$TMPDIR_CM" && ar x "$CM_DEB" && \
+     find . -name "data.tar*" | xargs -I{} tar -C / -xf {} 2>/dev/null) || \
+        log "WARNING: CodeMeter extraction had errors (may still be usable)"
+    rm -rf "$TMPDIR_CM"
+    ldconfig 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable codemeterlogin.service 2>/dev/null || true
+    systemctl start  codemeterlogin.service 2>/dev/null || \
+        log "WARNING: codemeterlogin.service not found — CodeMeter may need a reboot"
+    log "CodeMeter-lite installed"
+else
+    log "WARNING: CodeMeter .deb not found in $PKG_DIR — CODESYS will run in demo mode only"
+fi
+
+# Install CODESYS runtime — .deb (binary), then .ipk (component libraries)
 /usr/sbin/install-codesys-runtime.sh ${DEB:+"$DEB"} ${IPK:+"$IPK"}
 
 # Mark as done

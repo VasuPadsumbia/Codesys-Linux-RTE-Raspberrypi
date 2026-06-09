@@ -1,11 +1,11 @@
 [Unit]
 Description=IgH EtherCAT Master
 Documentation=https://gitlab.com/etherlab.org/ethercat
-After=network.target rt-setup.service
+After=network.target rt-setup.service xenomai-setup.service
 Before=codesyscontrol.service
 
 [Service]
-Type=forking
+Type=oneshot
 EnvironmentFile=-/etc/ethercat.conf
 ExecStart=/usr/sbin/ethercatctl start
 ExecStop=/usr/sbin/ethercatctl stop

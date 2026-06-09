@@ -29,3 +29,11 @@ WLAN_PREFIX="24"
 
 # ── Device hostname ────────────────────────────────────────────────────────────
 DEVICE_HOSTNAME="cclrte-plc"
+
+# ── Build-time: CODESYS runtime packages ──────────────────────────────────────
+# Filenames of the packages in data/ — read by cclrte.sh before the Yocto build.
+# Obtain from CODESYS IDE (Help → Install CODESYS Control for Linux) or store.codesys.com
+# Place both files in data/ (gitignored — not committed to the repo).
+CODESYS_DEB="codesyscontrol_linuxarm64_4.20.0.0_arm64.deb"
+CODESYS_IPK="codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk"
+CODEMETER_DEB="codemeter-lite_8.40.7131.502_arm64.deb"

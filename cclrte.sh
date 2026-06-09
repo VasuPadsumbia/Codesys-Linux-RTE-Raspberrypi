@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build"
+BUILD_DIR="${KAS_BUILD_DIR:-${SCRIPT_DIR}/build}"
 VENV_DIR="${SCRIPT_DIR}/venv"
 KAS_DIR="${SCRIPT_DIR}/kas"
 LOGS_DIR="${SCRIPT_DIR}/logs"
@@ -58,6 +58,30 @@ activate_venv() {
     source "${VENV_DIR}/bin/activate"
 }
 
+# ── site.conf build-var loader ────────────────────────────────────────────────
+# Sources only CODESYS_ prefixed vars from config/site.conf so WiFi passwords
+# etc. are not exported into kas/bitbake child processes.
+load_build_vars() {
+    local site_conf="${SCRIPT_DIR}/config/site.conf"
+    [[ -f "$site_conf" ]] || return 0
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        [[ -z "${line//[[:space:]]/}" ]] && continue
+        [[ "$line" =~ ^(CODESYS_|CODEMETER_)[A-Z_]+=.* ]] || continue
+        line="${line//$'\r'/}"   # strip CR in case site.conf has CRLF endings
+        export "${line//\"/}" 2>/dev/null || true
+    done < "$site_conf"
+}
+
+# Write package vars as a plain bitbake .conf file included by base.yml local_conf_header.
+# Avoids YAML generation entirely — bitbake include is simpler and always reliable.
+write_pkg_conf() {
+    local conf="${KAS_DIR}/.cclrte-packages.conf"
+    printf 'CODESYS_DEB   = "%s"\n' "${CODESYS_DEB:-codesyscontrol_linuxarm64_4.20.0.0_arm64.deb}" > "$conf"
+    printf 'CODESYS_IPK   = "%s"\n' "${CODESYS_IPK:-codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk}" >> "$conf"
+    printf 'CODEMETER_DEB = "%s"\n' "${CODEMETER_DEB:-codemeter-lite_8.40.7131.502_arm64.deb}"      >> "$conf"
+}
+
 # ── Build ─────────────────────────────────────────────────────────────────────
 cmd_build() {
     local target="${1:-preempt-rt}"
@@ -75,10 +99,16 @@ cmd_build() {
 
     local log_file="${LOGS_DIR}/build-${target}.log"
 
+    ensure_site_conf
+    load_build_vars
+    write_pkg_conf
+
     info "Build target : ${BOLD}${target}${NC}"
     info "KAS config   : ${kas_file}"
     info "KAS runner   : ${kas_runner}"
     info "Build log    : ${log_file}"
+    info "CODESYS_DEB  : ${CODESYS_DEB:-codesyscontrol_linuxarm64_4.20.0.0_arm64.deb}"
+    info "CODEMETER_DEB: ${CODEMETER_DEB:-codemeter-lite_8.40.7131.502_arm64.deb}"
     echo ""
 
     $kas_runner build "$kas_file" 2>&1 | tee "${log_file}"
@@ -86,18 +116,135 @@ cmd_build() {
     success "Build complete: $target"
     info "Full build log: ${log_file}"
     echo ""
-    info "Image location:"
-    case "$target" in
-        preempt-rt)
-            find "${BUILD_DIR}/tmp/deploy/images/rpi5-cclrte" -name "*.rpi-sdimg" 2>/dev/null || true ;;
-        xenomai)
-            find "${BUILD_DIR}/tmp/deploy/images/rpi5-cclrte-xenomai" -name "*.rpi-sdimg" 2>/dev/null || true ;;
-        qemu)
-            find "${BUILD_DIR}/tmp/deploy/images/qemux86-64" -name "*.ext4" 2>/dev/null || true ;;
-    esac
+
+    copy_image_to_output "$target"
 
     echo ""
     cmd_verify "$target"
+}
+
+# ── Copy built image to data/output/ ──────────────────────────────────────────
+copy_image_to_output() {
+    local target="$1"
+    local output_dir="${SCRIPT_DIR}/data/output"
+    mkdir -p "$output_dir"
+
+    local deploy_dir image_pattern
+    case "$target" in
+        preempt-rt)
+            deploy_dir="${BUILD_DIR}/tmp/deploy/images/rpi5-cclrte"
+            image_pattern="*.rpi-sdimg" ;;
+        xenomai)
+            deploy_dir="${BUILD_DIR}/tmp/deploy/images/rpi5-cclrte-xenomai"
+            image_pattern="*.rpi-sdimg" ;;
+        qemu)
+            deploy_dir="${BUILD_DIR}/tmp/deploy/images/qemux86-64"
+            image_pattern="*.ext4" ;;
+    esac
+
+    local image_file
+    image_file=$(find "$deploy_dir" -name "$image_pattern" -not -type l 2>/dev/null | sort | tail -1)
+
+    if [[ -z "$image_file" ]]; then
+        warn "No image found in ${deploy_dir}"
+        return
+    fi
+
+    local dest="${output_dir}/$(basename "$image_file")"
+    info "Copying image to data/output/ ..."
+    cp "$image_file" "$dest"
+    success "Image: ${dest}"
+
+    inject_site_conf "$dest"
+
+    info "Flash: ./cclrte.sh load /dev/sdX ${target}"
+}
+
+# ── Ensure config/site.conf exists (copy from sample on first use) ────────────
+ensure_site_conf() {
+    local site_conf="${SCRIPT_DIR}/config/site.conf"
+    local sample="${SCRIPT_DIR}/config/site.conf.sample"
+    if [[ ! -f "$site_conf" && -f "$sample" ]]; then
+        cp "$sample" "$site_conf"
+        info "Created config/site.conf from sample — edit it before building"
+    fi
+}
+
+# ── Inject site.conf into the boot FAT partition of the SD image ───────────────
+# MERGES with any existing site.conf on the image — only updates keys present
+# in config/site.conf, preserving any custom settings already on the SD card.
+inject_site_conf() {
+    local image="$1"
+    local site_conf="${SCRIPT_DIR}/config/site.conf"
+
+    [[ -f "$site_conf" ]] || { warn "site.conf not found — skipping injection"; return; }
+    command -v mcopy &>/dev/null || { warn "mtools not installed — site.conf not injected"; return; }
+
+    local start_sector
+    start_sector=$(fdisk -lu "$image" 2>/dev/null | awk '/FAT|W95|vfat|type c|0xc/{print $2; exit}')
+    [[ -z "$start_sector" ]] && start_sector=8192
+    local byte_offset=$(( start_sector * 512 ))
+    local marg="${image}@@${byte_offset}"
+
+    # Read existing site.conf from image (may not exist on first flash)
+    local existing_conf
+    existing_conf=$(mtype -i "$marg" ::/site.conf 2>/dev/null || true)
+
+    # Merge: start with existing, then overlay keys from config/site.conf
+    local merged
+    merged=$(python3 - "$site_conf" <<'PYEOF'
+import sys, re
+
+def parse(text):
+    result = {}
+    order = []
+    for line in text.splitlines():
+        m = re.match(r'^([A-Z_][A-Z0-9_]*)=(.*)', line)
+        if m:
+            key = m.group(1)
+            if key not in result:
+                order.append(key)
+            result[key] = line   # preserve full line including quotes/comments
+        else:
+            order.append(('\x00', line))  # non-key lines (comments, blank)
+    return result, order
+
+# existing from stdin (may be empty), new from file arg
+existing_text = sys.stdin.read()
+new_text = open(sys.argv[1]).read()
+
+existing, ex_order = parse(existing_text)
+new_vals, _        = parse(new_text)
+
+# Apply new values over existing
+merged = dict(existing)
+merged.update(new_vals)
+
+# Output: preserve existing structure, add new keys at end
+seen = set()
+for item in ex_order:
+    if isinstance(item, tuple):
+        print(item[1])
+    else:
+        key = item
+        seen.add(key)
+        print(merged.get(key, existing.get(key, '')))
+
+# Append keys that are new (not in existing at all)
+for key, line in new_vals.items():
+    if key not in seen and key not in existing:
+        print(line)
+PYEOF
+<<< "$existing_conf")
+
+    # Write merged result back to image
+    local tmpfile
+    tmpfile=$(mktemp /tmp/site-conf-XXXXXX.conf)
+    echo "$merged" > "$tmpfile"
+    mcopy -i "$marg" -o "$tmpfile" ::/site.conf 2>/dev/null && \
+        success "site.conf merged into boot partition → WiFi/hostname auto-configure on first boot" || \
+        warn "site.conf injection failed — copy manually to SD card boot partition"
+    rm -f "$tmpfile"
 }
 
 # ── Test ──────────────────────────────────────────────────────────────────────
@@ -565,7 +712,7 @@ cmd_verify() {
                     _vcheck "Root: cyclictest" FAIL "rt-tests not in image"
                 fi
 
-                # Check 11 — IgH EtherCAT
+                # Check 11 — IgH EtherCAT userspace tools
                 local ec_bin
                 ec_bin=$(find "${mnt_root}/usr/sbin" "${mnt_root}/sbin" \
                     -name "ethercatctl" 2>/dev/null | head -1)
@@ -573,6 +720,25 @@ cmd_verify() {
                     _vcheck "Root: ethercatctl" PASS "igh-ethercat installed"
                 else
                     _vcheck "Root: ethercatctl" FAIL "igh-ethercat not in image"
+                fi
+
+                # Check 11b — IgH EtherCAT kernel modules (ec_master + ec_generic)
+                local ec_master_ko ec_generic_ko
+                ec_master_ko=$(find "${mnt_root}/lib/modules" \
+                    -name "ec_master.ko" -o -name "ec_master.ko.gz" -o -name "ec_master.ko.xz" \
+                    2>/dev/null | head -1)
+                ec_generic_ko=$(find "${mnt_root}/lib/modules" \
+                    -name "ec_generic.ko" -o -name "ec_generic.ko.gz" -o -name "ec_generic.ko.xz" \
+                    2>/dev/null | head -1)
+                if [[ -n "$ec_master_ko" && -n "$ec_generic_ko" ]]; then
+                    _vcheck "Root: ec_master + ec_generic .ko" PASS \
+                        "$(basename "$ec_master_ko"), $(basename "$ec_generic_ko")"
+                elif [[ -n "$ec_master_ko" ]]; then
+                    _vcheck "Root: ec_master + ec_generic .ko" FAIL \
+                        "ec_master found but ec_generic missing — ethercatctl start will fail"
+                else
+                    _vcheck "Root: ec_master + ec_generic .ko" FAIL \
+                        "neither module found — modprobe will fail at boot (rebuild igh-ethercat)"
                 fi
 
                 # Check 12 — WebUI service

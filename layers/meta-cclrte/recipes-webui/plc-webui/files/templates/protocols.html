@@ -7,44 +7,112 @@
 <div class="alert alert-{{ msg[0] }}">{{ msg[1] }}</div>
 {% endif %}
 
+<div class="section-header">
+  <h3>eth1 Fieldbus — Waveshare PCIe NIC</h3>
+  <p class="info-muted">Only one protocol may be active on eth1 at a time. Starting one automatically stops the others.</p>
+  <div class="info-row"><span>Active protocol</span>
+    <span class="badge {% if active_proto != 'none' %}badge-green{% else %}badge-gray{% endif %}">{{ active_proto }}</span>
+  </div>
+</div>
+
 <div class="cards-grid">
 
-  <div class="card">
-    <div class="card-header">EtherCAT Master (IgH)</div>
+  <div class="card {% if active_proto == 'ethercat' %}card-active{% endif %}">
+    <div class="card-header">EtherCAT Master (IgH)
+      {% if active_proto == 'ethercat' %}<span class="badge badge-green" style="float:right">ACTIVE</span>{% endif %}
+    </div>
     <div class="card-body">
-      <div class="info-row"><span>Status</span>
-        <span class="badge {% if statuses.ethercat == 'active' %}badge-green{% else %}badge-red{% endif %}">
-          {{ statuses.ethercat }}
-        </span>
+      <div class="info-row"><span>Service</span>
+        <span class="badge {% if statuses.ethercat == 'active' %}badge-green{% else %}badge-red{% endif %}">{{ statuses.ethercat }}</span>
       </div>
-      <p class="info-muted">Pinned to CPU2 (SCHED_FIFO 90). Dedicated NIC required (eth1).</p>
-      <form method="POST">
-        <input type="hidden" name="action" value="ethercat">
+      <div class="info-row"><span>CPU</span><code>CPU2, SCHED_FIFO 90</code></div>
+      <div class="info-row"><span>Driver</span><code>ec_generic</code></div>
+      <form method="POST" style="margin-top:8px">
+        <input type="hidden" name="action" value="ethercat_mac">
         <div class="form-group">
-          <label>EtherCAT NIC MAC address</label>
-          <input type="text" name="master_device" value="{{ ethercat_mac }}" placeholder="aa:bb:cc:dd:ee:ff">
-          <small>Leave empty for auto-detect. Use <code>ip link show eth1</code> to find MAC.</small>
+          <label>NIC MAC (eth1)</label>
+          <input type="text" name="master_device" value="{{ ethercat_mac }}" placeholder="00:e0:4c:xx:xx:xx">
         </div>
-        <div class="form-row">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <button type="submit" name="action" value="service_toggle" form="ethercat-ctrl" class="btn btn-secondary">Restart</button>
-        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Save MAC</button>
       </form>
-      <form id="ethercat-ctrl" method="POST">
-        <input type="hidden" name="action" value="service_toggle">
-        <input type="hidden" name="service" value="ethercat">
-        <input type="hidden" name="toggle" value="restart">
-      </form>
+      <div class="form-row" style="margin-top:8px">
+        <form method="POST" style="display:inline">
+          <input type="hidden" name="action" value="proto_start">
+          <input type="hidden" name="protocol" value="ethercat">
+          <button type="submit" class="btn btn-primary btn-sm" {% if active_proto == 'ethercat' %}disabled{% endif %}>Start</button>
+        </form>
+        <form method="POST" style="display:inline;margin-left:4px">
+          <input type="hidden" name="action" value="proto_stop">
+          <input type="hidden" name="protocol" value="ethercat">
+          <button type="submit" class="btn btn-danger btn-sm" {% if active_proto != 'ethercat' %}disabled{% endif %}>Stop</button>
+        </form>
+      </div>
     </div>
   </div>
+
+  <div class="card {% if active_proto == 'profinet' %}card-active{% endif %}">
+    <div class="card-header">PROFINET (p-net device)
+      {% if active_proto == 'profinet' %}<span class="badge badge-green" style="float:right">ACTIVE</span>{% endif %}
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span>Service</span>
+        <span class="badge {% if statuses.profinet == 'active' %}badge-green{% else %}badge-gray{% endif %}">{{ statuses.profinet }}</span>
+      </div>
+      <div class="info-row"><span>Role</span><code>IO Device (slave)</code></div>
+      <div class="info-row"><span>Interface</span><code>eth1</code></div>
+      <div class="info-row"><span>Config</span><code>/etc/profinet/profinet.conf</code></div>
+      <div class="form-row" style="margin-top:8px">
+        <form method="POST" style="display:inline">
+          <input type="hidden" name="action" value="proto_start">
+          <input type="hidden" name="protocol" value="profinet">
+          <button type="submit" class="btn btn-primary btn-sm" {% if active_proto == 'profinet' %}disabled{% endif %}>Start</button>
+        </form>
+        <form method="POST" style="display:inline;margin-left:4px">
+          <input type="hidden" name="action" value="proto_stop">
+          <input type="hidden" name="protocol" value="profinet">
+          <button type="submit" class="btn btn-danger btn-sm" {% if active_proto != 'profinet' %}disabled{% endif %}>Stop</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="card {% if active_proto == 'modbus-tcp' %}card-active{% endif %}">
+    <div class="card-header">Modbus TCP (eth1)
+      {% if active_proto == 'modbus-tcp' %}<span class="badge badge-green" style="float:right">ACTIVE</span>{% endif %}
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span>Service</span>
+        <span class="badge {% if statuses.modbus_tcp == 'active' %}badge-green{% else %}badge-gray{% endif %}">{{ statuses.modbus_tcp }}</span>
+      </div>
+      <div class="info-row"><span>Port</span><code>502</code></div>
+      <div class="info-row"><span>Interface</span><code>eth1</code></div>
+      <div class="info-row"><span>RTU</span><code>/dev/ttyAMA0</code></div>
+      <div class="form-row" style="margin-top:8px">
+        <form method="POST" style="display:inline">
+          <input type="hidden" name="action" value="proto_start">
+          <input type="hidden" name="protocol" value="modbus-tcp">
+          <button type="submit" class="btn btn-primary btn-sm" {% if active_proto == 'modbus-tcp' %}disabled{% endif %}>Start</button>
+        </form>
+        <form method="POST" style="display:inline;margin-left:4px">
+          <input type="hidden" name="action" value="proto_stop">
+          <input type="hidden" name="protocol" value="modbus-tcp">
+          <button type="submit" class="btn btn-danger btn-sm" {% if active_proto != 'modbus-tcp' %}disabled{% endif %}>Stop</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section-header" style="margin-top:24px"><h3>Management Protocols</h3></div>
+<div class="cards-grid">
 
   <div class="card">
     <div class="card-header">OPC UA Server</div>
     <div class="card-body">
       <div class="info-row"><span>Status</span><span class="badge badge-gray">{{ statuses.opcua }}</span></div>
-      <p class="info-muted">OPC UA server is embedded in CODESYS. Configure via CODESYS IDE &#8594; Device &#8594; OPC UA.</p>
       <div class="info-row"><span>Endpoint</span><code>opc.tcp://&lt;eth0-ip&gt;:4840</code></div>
-      <div class="info-row"><span>Library</span><code>open62541 v1.3.10</code></div>
+      <p class="info-muted">Configure via CODESYS IDE → Device → OPC UA.</p>
     </div>
   </div>
 
@@ -52,49 +120,18 @@
     <div class="card-header">MQTT Broker (Mosquitto)</div>
     <div class="card-body">
       <div class="info-row"><span>Status</span>
-        <span class="badge {% if statuses.mqtt == 'active' %}badge-green{% else %}badge-red{% endif %}">
-          {{ statuses.mqtt }}
-        </span>
+        <span class="badge {% if statuses.mqtt == 'active' %}badge-green{% else %}badge-red{% endif %}">{{ statuses.mqtt }}</span>
       </div>
       <div class="info-row"><span>Broker</span><code>localhost:1883</code></div>
-      <div class="info-row"><span>WebSocket</span><code>ws://&lt;wlan-ip&gt;:9001</code></div>
-      <form method="POST">
+      <form method="POST" style="margin-top:8px">
         <input type="hidden" name="action" value="service_toggle">
         <input type="hidden" name="service" value="mosquitto">
         <div class="form-row">
-          <button type="submit" name="toggle" value="start"   class="btn btn-secondary btn-sm">Start</button>
-          <button type="submit" name="toggle" value="stop"    class="btn btn-secondary btn-sm">Stop</button>
-          <button type="submit" name="toggle" value="restart" class="btn btn-secondary btn-sm">Restart</button>
+          <button name="toggle" value="start"   class="btn btn-secondary btn-sm">Start</button>
+          <button name="toggle" value="stop"    class="btn btn-secondary btn-sm">Stop</button>
+          <button name="toggle" value="restart" class="btn btn-secondary btn-sm">Restart</button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">PROFINET (p-net device)</div>
-    <div class="card-body">
-      <div class="info-row"><span>Role</span><span class="badge badge-gray">Device (slave)</span></div>
-      <div class="info-row"><span>Interface</span><code>eth1</code></div>
-      <p class="info-muted">p-net implements PROFINET IO Device role. For IO Controller (master), use CODESYS PROFINET SL add-on from CODESYS Store.</p>
-      <div class="info-row"><span>Config</span><code>/etc/profinet/profinet.conf</code></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">IO-Link Master</div>
-    <div class="card-body">
-      <div class="info-row"><span>Transport</span><code>SPI0 (/dev/spidev0.0)</code></div>
-      <div class="info-row"><span>Ports</span><code>4 &#215; IO-Link ports (HAT)</code></div>
-      <p class="info-muted">IO-Link master runs over SPI via IO-Link HAT. Configure port modes in <code>/etc/iolink/iolink.conf</code>.</p>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">Modbus RTU / TCP</div>
-    <div class="card-body">
-      <div class="info-row"><span>RTU</span><code>/dev/ttyAMA0 (RS-485)</code></div>
-      <div class="info-row"><span>TCP</span><code>Port 502</code></div>
-      <p class="info-muted">Modbus is configured via CODESYS SysCom driver. UART0 is available after Bluetooth is disabled (dtoverlay=disable-bt in config.txt).</p>
     </div>
   </div>
 

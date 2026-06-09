@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1-mesa libsdl1.2-dev xterm mesa-common-dev zstd liblz4-tool \
     file locales lz4 libacl1 python3-distutils \
     util-linux pv ca-certificates curl sudo \
+    mtools parted \
     && locale-gen en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 

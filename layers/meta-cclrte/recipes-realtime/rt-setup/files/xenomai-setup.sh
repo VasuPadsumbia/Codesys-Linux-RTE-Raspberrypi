@@ -52,16 +52,49 @@ for irq_dir in /proc/irq/*/; do
     echo "3" > "${irq_dir}smp_affinity" 2>/dev/null || true   # bitmask 0x3 = CPU0,1
 done
 
-# ── 5. EtherCAT NIC IRQ → CPU2 ───────────────────────────────────────────────
+# ── 5. EtherCAT NIC (Waveshare RTL8111H, PCIe) — IRQ → CPU2 ─────────────────
+# eth1 = Waveshare PCIe RTL8111H (net.ifnames=0, external PCIe FPC connector)
+# eth0 = RPi5 internal NIC via RP1 (management / CODESYS programming port)
 ETHERCAT_IF=${ETHERCAT_IF:-eth1}
-if ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -n 1); then
-    if [[ -n "$ETH_IRQ" ]]; then
-        echo "4" > "/proc/irq/${ETH_IRQ}/smp_affinity" 2>/dev/null || true   # bitmask 0x4 = CPU2
-        log "${ETHERCAT_IF} IRQ ${ETH_IRQ} pinned to CPU2"
+
+# Auto-populate MASTER0_DEVICE in ethercat.conf if not already set.
+# IgH uses MAC to identify which NIC to claim with ec_r8169.
+ETHERCAT_CONF=/etc/ethercat.conf
+if [[ -f "${ETHERCAT_CONF}" ]]; then
+    CURRENT_MAC=$(grep -E '^MASTER0_DEVICE=' "${ETHERCAT_CONF}" | sed 's/MASTER0_DEVICE=//;s/"//g' | tr -d '[:space:]')
+    if [[ -z "${CURRENT_MAC}" ]]; then
+        NIC_MAC=$(cat "/sys/class/net/${ETHERCAT_IF}/address" 2>/dev/null || true)
+        if [[ -n "${NIC_MAC}" ]]; then
+            sed -i "s/^MASTER0_DEVICE=.*/MASTER0_DEVICE=\"${NIC_MAC}\"/" "${ETHERCAT_CONF}"
+            log "EtherCAT MASTER0_DEVICE set to ${NIC_MAC} (${ETHERCAT_IF})"
+        else
+            log "WARNING: ${ETHERCAT_IF} not found — PCIe NIC not detected. Check dtparam=pciex1=on in config.txt"
+        fi
+    else
+        log "EtherCAT MASTER0_DEVICE already set: ${CURRENT_MAC}"
     fi
 fi
 
+# Pin EtherCAT NIC IRQ to CPU2 before ec_r8169 loads.
+# IRQ number persists across driver change (r8169 → ec_r8169).
+ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -n 1 || true)
+if [[ -n "${ETH_IRQ}" ]]; then
+    echo "4" > "/proc/irq/${ETH_IRQ}/smp_affinity" 2>/dev/null || true   # bitmask 0x4 = CPU2
+    log "${ETHERCAT_IF} IRQ ${ETH_IRQ} pinned to CPU2"
+    # MSI-X vectors for RTL8111H — pin all to CPU2
+    for msix_irq_dir in "/proc/irq/"*/; do
+        msix_irq=$(basename "${msix_irq_dir}")
+        [[ "${msix_irq}" == "default_smp_affinity" ]] && continue
+        if grep -q "${ETHERCAT_IF}" "${msix_irq_dir}/actions" 2>/dev/null; then
+            echo "4" > "${msix_irq_dir}smp_affinity" 2>/dev/null || true
+        fi
+    done
+else
+    log "WARNING: ${ETHERCAT_IF} IRQ not found in /proc/interrupts"
+fi
+
 log "Xenomai Cobalt setup complete"
-log "  EtherCAT: IgH master on CPU2 — bus timing via Cobalt hrtimer pipeline"
+log "  PCIe NIC: ${ETHERCAT_IF} (RTL8111H) → IgH ec_r8169 → CPU2 SCHED_FIFO 90"
+log "  EtherCAT: Cobalt hrtimer pipeline — hard-RT bus cycles"
 log "  CODESYS:  Linux domain, PREEMPT_RT SCHED_FIFO 80, CPU3, target cycle 500 µs"
 log "  Set CODESYS task cycle in IDE: Application > Task Configuration > T#500us"

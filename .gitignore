@@ -17,6 +17,9 @@ __pycache__/
 dist/
 .eggs/
 
+# Built images — copied here by cclrte.sh after successful build
+data/output/
+
 # CODESYS closed-license runtime packages
 # Place these in data/ before building (not tracked in git — binary blobs)
 # Obtain from: CODESYS IDE → Help → Install CODESYS Control for Linux
@@ -28,6 +31,10 @@ layers/meta-xenomai/
 
 # Site-specific config (contains WiFi passwords and SSH keys)
 config/site.conf
+
+# Generated bitbake conf — written by cclrte.sh at build time from site.conf
+kas/.cclrte-packages.conf
+kas/.cclrte-pkgs-overlay.yml
 
 # Yocto
 *.lock
@@ -48,3 +55,4 @@ meta-openembedded/
 meta-raspberrypi/
 meta-realtime/
 poky/
+.*/

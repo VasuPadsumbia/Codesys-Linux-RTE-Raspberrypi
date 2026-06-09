@@ -13,7 +13,7 @@ target: cclrte-image
 
 repos:
   meta-raspberrypi:
-    url: git@github.com:agherzan/meta-raspberrypi
+    url: https://github.com/agherzan/meta-raspberrypi
     branch: scarthgap
     layers:
       .:
@@ -59,3 +59,5 @@ local_conf_header:
     # arm_boost=1 (3.0 GHz) intentionally removed — 2.4 GHz base is adequate for
     # all PLC scan cycles and reduces junction temperature by ~10–15 °C.
     RPI_EXTRA_CONFIG = "force_turbo=1\ntemp_limit=80\ngpu_mem=16\nhdmi_blanking=2\ndisplay_auto_detect=0\ncamera_auto_detect=0\ndtparam=audio=off\ndisable_splash=1\ndtoverlay=disable-bt\ndtparam=watchdog=on\n"
+
+    # CODESYS_DEB / CODESYS_IPK are injected from config/site.conf by cclrte.sh

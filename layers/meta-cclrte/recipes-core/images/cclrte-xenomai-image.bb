@@ -5,3 +5,6 @@ LICENSE = "MIT"
 # xenomai-libcobalt / xenomai-utils come from meta-xenomai — add back once
 # a scarthgap-compatible meta-xenomai layer is available.
 require cclrte-image.bb
+
+# pciutils: lspci — verify Waveshare RTL8111H PCIe NIC detected at runtime
+IMAGE_INSTALL:append = " pciutils"

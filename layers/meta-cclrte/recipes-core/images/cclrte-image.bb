@@ -24,7 +24,10 @@ IMAGE_INSTALL:append = " \
     python3-werkzeug \
     python3-jinja2 \
     extended-io-config \
+    fan-control \
+    protocol-manager \
     rt-tests \
+    stress-ng \
     i2c-tools \
     can-utils \
     ethtool \

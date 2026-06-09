@@ -25,7 +25,7 @@ do_install() {
 }
 
 # rt-tests provides cyclictest binary
-RDEPENDS:${PN} = "rt-tests bash python3"
+RDEPENDS:${PN} = "rt-tests bash python3 stress-ng"
 
 # systemd bbclass may pre-create /var/volatile dirs; suppress spurious QA warning
 INSANE_SKIP:${PN} += "empty-dirs"

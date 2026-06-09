@@ -33,10 +33,29 @@ for irq_dir in /proc/irq/*/; do
     echo "3" > "${irq_dir}smp_affinity" 2>/dev/null || true   # 0x3 = CPU0,1
 done
 
-# ── 2. EtherCAT NIC IRQ → CPU2 ───────────────────────────────────────────────
+# ── 2. EtherCAT NIC IRQ → CPU2 and MAC auto-population ──────────────────────
 # Move the EtherCAT NIC's IRQ to CPU2 so the kernel NIC handler and IgH
 # master thread share the same CPU — reduces cross-CPU cache misses.
+# Also populate MASTER0_DEVICE if it is empty (xenomai-setup.sh does this on
+# Xenomai builds; mirror it here for PREEMPT_RT builds so ethercatctl can start).
 ETHERCAT_IF=${ETHERCAT_IF:-eth1}
+
+ETHERCAT_CONF=/etc/ethercat.conf
+if [[ -f "${ETHERCAT_CONF}" ]]; then
+    CURRENT_MAC=$(grep -E '^MASTER0_DEVICE=' "${ETHERCAT_CONF}" | sed 's/MASTER0_DEVICE=//;s/"//g' | tr -d '[:space:]')
+    if [[ -z "${CURRENT_MAC}" ]]; then
+        NIC_MAC=$(cat "/sys/class/net/${ETHERCAT_IF}/address" 2>/dev/null || true)
+        if [[ -n "${NIC_MAC}" ]]; then
+            sed -i "s/^MASTER0_DEVICE=.*/MASTER0_DEVICE=\"${NIC_MAC}\"/" "${ETHERCAT_CONF}"
+            log "EtherCAT MASTER0_DEVICE set to ${NIC_MAC} (${ETHERCAT_IF})"
+        else
+            log "WARNING: ${ETHERCAT_IF} not found — PCIe NIC not detected. Check dtparam=pciex1=on in config.txt"
+        fi
+    else
+        log "EtherCAT MASTER0_DEVICE already set: ${CURRENT_MAC}"
+    fi
+fi
+
 log "Pinning ${ETHERCAT_IF} IRQ to CPU2"
 if ETH_IRQ=$(grep "${ETHERCAT_IF}" /proc/interrupts 2>/dev/null | awk -F: '{print $1}' | tr -d ' ' | head -n 1); then
     if [[ -n "$ETH_IRQ" ]]; then

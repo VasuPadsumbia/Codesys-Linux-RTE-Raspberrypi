@@ -13,7 +13,7 @@ repos:
       meta-yocto-bsp:
 
   meta-openembedded:
-    url: git@github.com:openembedded/meta-openembedded
+    url: https://github.com/openembedded/meta-openembedded
     branch: scarthgap
     layers:
       meta-oe:
@@ -41,9 +41,21 @@ local_conf_header:
 
     # Parallel builds — capped to avoid OOM on 14 GB RAM systems.
     # Full cpu_count() with 16 cores causes system crashes during GCC builds.
-    BB_NUMBER_THREADS = "4"
-    PARALLEL_MAKE     = "-j 2"
+    BB_NUMBER_THREADS       = "4"
+    BB_NUMBER_PARSE_THREADS = "4"
+    PARALLEL_MAKE           = "-j 2"
+
+    # SPDX generation loads a large licence JSON into every recipe's datastore
+    # during parse — causes ENOMEM spikes on memory-constrained hosts.
+    INHERIT:remove = "create-spdx"
 
     # Shared caches — one level above build dir, shared across all targets
     DL_DIR    ?= "${TOPDIR}/../downloads"
     SSTATE_DIR ?= "${TOPDIR}/../sstate-cache"
+
+    # CODESYS package filenames — defaults, overridden by kas/.cclrte-packages.conf
+    # which cclrte.sh writes from config/site.conf before each build.
+    CODESYS_DEB   ?= "codesyscontrol_linuxarm64_4.20.0.0_arm64.deb"
+    CODESYS_IPK   ?= "codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk"
+    CODEMETER_DEB ?= "codemeter-lite_8.40.7131.502_arm64.deb"
+    include /workspace/kas/.cclrte-packages.conf

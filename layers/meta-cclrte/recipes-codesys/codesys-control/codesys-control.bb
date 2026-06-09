@@ -16,8 +16,8 @@
 #       /usr/sbin/install-codesys-runtime.sh /tmp/*.deb /tmp/*.ipk
 #
 # PACKAGES (must exist in data/ at repo root before building):
-#   data/codesyscontrol_linuxarm64_4.20.0.0_arm64.deb  — runtime binary
-#   data/codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk  — component libraries
+#   Set CODESYS_DEB / CODESYS_IPK in local.conf or kas yml to match your files.
+#   Defaults target the standard arm64 Control SL package name.
 #
 # KEY CONFIG DECISIONS (per debug session — see data/codesys plc.txt):
 #   SchedulerInterval=500      must match task cycle (µs) — was 4000, caused 251 µs RT spikes
@@ -29,6 +29,19 @@
 DESCRIPTION = "CODESYS Control for Linux SL — RT configuration and auto-install"
 HOMEPAGE = "https://store.codesys.com"
 LICENSE = "CLOSED"
+
+# Runtime package filenames — override in local.conf or kas yml to match your files.
+# Example: CODESYS_DEB = "codesysedge_edgearm64_4.20.0.0_arm64.deb"
+CODESYS_DEB ?= "codesyscontrol_linuxarm64_4.20.0.0_arm64.deb"
+CODESYS_IPK ?= "codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk"
+
+# CodeMeter-lite — license daemon required by CODESYS Control SL.
+# Without it CODESYS runs in demo mode and exits after ~2 h.
+CODEMETER_DEB ?= "codemeter-lite_8.40.7131.502_arm64.deb"
+
+# THISDIR = recipe file dir (recipes-codesys/codesys-control), 4 dirs up = workspace root.
+# More reliable than LAYERDIR or TOPDIR, both of which vary with build environment.
+CCLRTE_DATA_DIR = "${THISDIR}/../../../../data"
 
 inherit systemd
 
@@ -104,12 +117,9 @@ do_install() {
     # fetcher cannot resolve ../ in FILESEXTRAPATHS on Yocto.
     # do_check_packages (runs before do_fetch) guarantees these exist.
     install -d ${D}/opt/codesys-packages
-    install -m 0644 \
-        ${TOPDIR}/../data/codesyscontrol_linuxarm64_4.20.0.0_arm64.deb \
-        ${D}/opt/codesys-packages/
-    install -m 0644 \
-        ${TOPDIR}/../data/codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk \
-        ${D}/opt/codesys-packages/
+    install -m 0644 ${CCLRTE_DATA_DIR}/${CODESYS_DEB}   ${D}/opt/codesys-packages/
+    install -m 0644 ${CCLRTE_DATA_DIR}/${CODESYS_IPK}   ${D}/opt/codesys-packages/
+    install -m 0644 ${CCLRTE_DATA_DIR}/${CODEMETER_DEB} ${D}/opt/codesys-packages/
 
     # ── Pre-create runtime directories ────────────────────────────────────────
     install -d ${D}/opt/codesys/bin
@@ -146,17 +156,21 @@ RDEPENDS:${PN} = "bash libstdc++ libgcc python3-core"
 # They are gitignored (binary blobs) — obtain from CODESYS IDE installer or store.codesys.com.
 python do_check_packages() {
     import os, bb
-    topdir = d.getVar('TOPDIR')
-    data_dir = os.path.join(topdir, '..', 'data')
-    deb = os.path.join(data_dir, 'codesyscontrol_linuxarm64_4.20.0.0_arm64.deb')
-    ipk = os.path.join(data_dir, 'codesyscontrol_linuxarm64_4.20.0.0_arm64.ipk')
-    missing = [f for f in [deb, ipk] if not os.path.isfile(f)]
+    data_dir = os.path.normpath(d.getVar('CCLRTE_DATA_DIR'))
+    required = [
+        os.path.join(data_dir, d.getVar('CODESYS_DEB')),
+        os.path.join(data_dir, d.getVar('CODESYS_IPK')),
+        os.path.join(data_dir, d.getVar('CODEMETER_DEB')),
+    ]
+    missing = [f for f in required if not os.path.isfile(f)]
     if missing:
         bb.fatal(
-            "CODESYS runtime packages missing from data/:\n"
+            "Packages missing from data/:\n"
             + "\n".join(f"  {os.path.basename(m)}" for m in missing)
-            + "\n\nObtain both files from CODESYS IDE (Help → Install CODESYS Control for Linux)"
-            + "\nor from https://store.codesys.com and place in data/ at the repo root."
+            + "\n\nCODESYS_DEB / CODESYS_IPK: set in config/site.conf to match your files."
+            + "\n  Obtain from CODESYS IDE (Help → Install CODESYS Control for Linux)"
+            + "\n  or from https://store.codesys.com"
+            + "\n\nCODEMETER_DEB: codemeter-lite arm64 .deb from https://www.wibu.com/support/user/user-software.html"
         )
 }
 addtask do_check_packages before do_fetch

@@ -204,7 +204,11 @@ def http_time_offset_s():
 
 def clock_info():
     """Return Pi clock: ISO timestamp, NTP sync state."""
-    now = datetime.now()
+    # Use system date command — respects /etc/localtime and the configured timezone.
+    # datetime.now() is correct locally but JS Date() interprets ISO strings without
+    # timezone offset as UTC, causing display to be off by the timezone offset.
+    date_out, _ = run("date '+%Y-%m-%dT%H:%M:%S%z'")
+    now_str = date_out.strip() if date_out.strip() else datetime.now().strftime('%Y-%m-%dT%H:%M:%S+00:00')
     svc_out, svc_rc = run('systemctl is-active chronyd 2>/dev/null')
     ntp_running = svc_rc == 0 and svc_out.strip() == 'active'
     offset_ms = None
@@ -228,8 +232,8 @@ def clock_info():
                 offset_ms  = round(off * 1000, 1)
     ntp_cfg = read_ntp_mode()
     return {
-        'iso':               now.strftime('%Y-%m-%dT%H:%M:%S'),
-        'display':           now.strftime('%Y-%m-%d %H:%M:%S'),
+        'iso':               now_str,
+        'display':           now_str[:19].replace('T', ' '),
         'ntp_synced':        ntp_synced,
         'offset_ms':         offset_ms,
         'sync_method_label': _ntp_mode_labels().get(ntp_cfg['mode'], 'Internet NTP'),
@@ -377,38 +381,66 @@ def network():
     wlan_ip = get_ip('wlan0')
     return render_template('network.html', msg=msg, eth0_ip=eth0_ip, wlan_ip=wlan_ip)
 
+ACTIVE_PROTO_FILE = '/var/lib/cclrte/active-protocol'
+ETH1_PROTOCOLS    = ['ethercat', 'profinet', 'modbus-tcp']
+
+def active_eth1_protocol():
+    try:
+        with open(ACTIVE_PROTO_FILE) as f:
+            return f.read().strip()
+    except Exception:
+        return 'none'
+
 @app.route('/protocols', methods=['GET', 'POST'])
 @login_required
 def protocols():
     msg = None
     if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'ethercat':
+        action   = request.form.get('action', '')
+        protocol = request.form.get('protocol', '')
+
+        # Mutual-exclusivity: start one of the three eth1 protocols
+        if action == 'proto_start' and protocol in ETH1_PROTOCOLS:
+            _, rc = run(f'/usr/sbin/protocol-manager.sh start {protocol}')
+            if rc == 0:
+                msg = ('success', f'{protocol} started on eth1 — other eth1 protocols stopped')
+            else:
+                msg = ('error', f'Failed to start {protocol}')
+
+        elif action == 'proto_stop' and protocol in ETH1_PROTOCOLS:
+            _, rc = run(f'/usr/sbin/protocol-manager.sh stop {protocol}')
+            msg = ('success' if rc == 0 else 'error',
+                   f'{protocol} {"stopped" if rc == 0 else "stop failed"}')
+
+        elif action == 'ethercat_mac':
             mac = request.form.get('master_device', '').strip()
-            content = f"MASTER0_DEVICE=\"{mac}\"\nDEVICE_MODULES=\"generic\"\n"
             try:
+                with open(ETHERCAT_CFG) as f:
+                    content = f.read()
+                import re as _re
+                content = _re.sub(r'^MASTER0_DEVICE=.*', f'MASTER0_DEVICE="{mac}"',
+                                  content, flags=_re.MULTILINE)
                 with open(ETHERCAT_CFG, 'w') as f:
                     f.write(content)
                 run('systemctl restart ethercat')
-                msg = ('success', 'EtherCAT configuration saved and service restarted')
+                msg = ('success', 'EtherCAT MAC saved — service restarted')
             except Exception as e:
                 msg = ('error', str(e))
+
         elif action == 'service_toggle':
             svc    = request.form.get('service', '')
-            action = request.form.get('toggle', 'start')
-            allowed = ['ethercat', 'mosquitto', 'codesyscontrol']
-            if svc in allowed and action in ['start', 'stop', 'restart']:
-                _, rc = run(f'systemctl {action} {svc}')
-                msg = ('success' if rc == 0 else 'error',
-                       f'{svc} {action}{"ed" if action != "restart" else "ed"}')
+            toggle = request.form.get('toggle', 'start')
+            if svc in ['mosquitto', 'codesyscontrol'] and toggle in ['start', 'stop', 'restart']:
+                _, rc = run(f'systemctl {toggle} {svc}')
+                msg = ('success' if rc == 0 else 'error', f'{svc} {toggle}')
 
+    active_proto = active_eth1_protocol()
     statuses = {
-        'ethercat':  service_status('ethercat'),
-        'opcua':     'embedded in CODESYS',
-        'mqtt':      service_status('mosquitto'),
-        'profinet':  'p-net device stack',
-        'iolink':    'configured via SPI',
-        'modbus':    'via CODESYS SysCom',
+        'ethercat':   service_status('ethercat'),
+        'profinet':   service_status('profinet'),
+        'modbus_tcp': service_status('modbus-tcp'),
+        'mqtt':       service_status('mosquitto'),
+        'opcua':      'embedded in CODESYS',
     }
     ethercat_mac = ''
     try:
@@ -419,7 +451,8 @@ def protocols():
     except Exception:
         pass
 
-    return render_template('protocols.html', msg=msg, statuses=statuses, ethercat_mac=ethercat_mac)
+    return render_template('protocols.html', msg=msg, statuses=statuses,
+                           ethercat_mac=ethercat_mac, active_proto=active_proto)
 
 @app.route('/codesys', methods=['GET', 'POST'])
 @login_required
