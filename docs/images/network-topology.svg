@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="'Segoe UI', system-ui, Arial, sans-serif">
+  <defs>
+    <marker id="ab" viewBox="0 0 10 6" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#3b82f6"/>
+    </marker>
+    <marker id="ag" viewBox="0 0 10 6" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#10b981"/>
+    </marker>
+    <marker id="ay" viewBox="0 0 10 6" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#ca8a04"/>
+    </marker>
+    <marker id="ap" viewBox="0 0 10 6" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#9333ea"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="500" fill="#f8fafc" rx="10"/>
+
+  <!-- Title -->
+  <text x="400" y="26" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">CCLRTE Network Topology — Raspberry Pi 5</text>
+  <line x1="40" y1="36" x2="760" y2="36" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- =========================================================
+       RPi5 central box   x=255..545  y=130..350 (h=220)
+       ========================================================= -->
+  <rect x="255" y="130" width="290" height="220" rx="10" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+
+  <!-- header -->
+  <text x="400" y="152" text-anchor="middle" font-size="13" font-weight="700" fill="#f1f5f9">Raspberry Pi 5 (2 GB)</text>
+  <text x="400" y="167" text-anchor="middle" font-size="9"  fill="#94a3b8">BCM2712 · 4× Cortex-A76 @ 2.4 GHz locked (force_turbo=1)</text>
+  <text x="400" y="179" text-anchor="middle" font-size="9"  fill="#94a3b8">kernel 6.6.63-cclrte-xenomai · CODESYS 3.5.21.41</text>
+  <line x1="265" y1="187" x2="535" y2="187" stroke="#334155" stroke-width="1"/>
+
+  <!-- interface rows -->
+  <rect x="267" y="192" width="7" height="7" rx="1" fill="#3b82f6"/>
+  <text x="280" y="201" font-size="9" fill="#bfdbfe">eth0 · 192.168.2.100/24 static  (CODESYS prog port, OPC-UA :4840)</text>
+
+  <rect x="267" y="206" width="7" height="7" rx="1" fill="#60a5fa"/>
+  <text x="280" y="215" font-size="9" fill="#bfdbfe">wlan0 · DHCP  (management, WebUI :8080, SSH, NTP via chrony)</text>
+
+  <rect x="267" y="220" width="7" height="7" rx="1" fill="#10b981"/>
+  <text x="280" y="229" font-size="9" fill="#6ee7b7">eth1 · raw (no IP) · Waveshare PCIe RTL8111H HAT+  (EtherCAT / PROFINET / Modbus-TCP)</text>
+
+  <rect x="267" y="234" width="7" height="7" rx="1" fill="#a78bfa"/>
+  <text x="280" y="243" font-size="9" fill="#ddd6fe">SPI0 · /dev/spidev0.0  (IO-Link master, iol driver, 4 ports)</text>
+
+  <rect x="267" y="248" width="7" height="7" rx="1" fill="#c084fc"/>
+  <text x="280" y="257" font-size="9" fill="#ddd6fe">UART0 · /dev/ttyAMA0  (RS-485, Modbus RTU, CODESYS Modbus SL)</text>
+
+  <rect x="267" y="262" width="7" height="7" rx="1" fill="#e879f9"/>
+  <text x="280" y="271" font-size="9" fill="#ddd6fe">SPI1 · MCP2515  (CAN/CANopen, CODESYS CANopen SL)</text>
+
+  <line x1="265" y1="280" x2="535" y2="280" stroke="#334155" stroke-width="1"/>
+
+  <!-- CPU partition -->
+  <rect x="267" y="286" width="118" height="19" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+  <text x="326" y="299" text-anchor="middle" font-size="8.5" fill="#9ca3af">CPU0 · CPU1  (Linux OS)</text>
+
+  <rect x="392" y="286" width="136" height="19" rx="4" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+  <text x="460" y="299" text-anchor="middle" font-size="8.5" fill="#34d399">CPU2 EtherCAT · CPU3 CODESYS (RT)</text>
+
+  <!-- RT PASS badge -->
+  <rect x="267" y="313" width="261" height="22" rx="5" fill="#022c22" stroke="#10b981" stroke-width="1.5"/>
+  <text x="397" y="328" text-anchor="middle" font-size="10" font-weight="700" fill="#34d399">&#10003; RT PASS · 11 &#956;s worst-case · Xenomai Cobalt</text>
+
+  <!-- =========================================================
+       External nodes
+       ========================================================= -->
+
+  <!-- CODESYS IDE (left)  x=18..207  y=188..258 -->
+  <rect x="18" y="188" width="190" height="70" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="113" y="210" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">CODESYS IDE (PC)</text>
+  <text x="113" y="225" text-anchor="middle" font-size="9"  fill="#1e40af">TCP 1217 · gateway scan</text>
+  <text x="113" y="240" text-anchor="middle" font-size="9"  fill="#1e40af">OPC-UA :4840 (open62541)</text>
+
+  <!-- line: CODESYS right→ eth0 left edge of RPi5 -->
+  <line x1="208" y1="224" x2="254" y2="200" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
+  <text x="233" y="216" text-anchor="middle" font-size="8" fill="#3b82f6">eth0</text>
+
+  <!-- WiFi / Management (top)  x=305..495  y=44..102 -->
+  <rect x="305" y="44" width="190" height="62" rx="8" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="400" y="65"  text-anchor="middle" font-size="11" font-weight="700" fill="#854d0e">WiFi AP · Management</text>
+  <text x="400" y="80"  text-anchor="middle" font-size="9"  fill="#92400e">WebUI :8080 · SSH · NTP</text>
+  <text x="400" y="94"  text-anchor="middle" font-size="9"  fill="#92400e">wlan0 DHCP · internet route</text>
+
+  <!-- line: WiFi bottom → wlan0 (top edge RPi5, x≈420) -->
+  <line x1="420" y1="106" x2="420" y2="128" stroke="#ca8a04" stroke-width="1.5" marker-end="url(#ay)"/>
+  <text x="432" y="119" font-size="8" fill="#ca8a04">wlan0</text>
+
+  <!-- EtherCAT slaves (right)  x=570..782  y=158..245 -->
+  <rect x="570" y="158" width="212" height="90" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="676" y="180" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d">EtherCAT Slaves</text>
+  <text x="676" y="195" text-anchor="middle" font-size="9"  fill="#166534">Waveshare PCIe RTL8111H</text>
+  <text x="676" y="209" text-anchor="middle" font-size="9"  fill="#166534">HAT+ FPC · PCIe x1 Gen2</text>
+  <text x="676" y="223" text-anchor="middle" font-size="9"  fill="#166534">CPU2 SCHED_FIFO 90 · ec_generic</text>
+  <text x="676" y="238" text-anchor="middle" font-size="9"  fill="#166534">protocol-manager.sh (mutual excl.)</text>
+
+  <!-- line: eth1 right edge RPi5 (x=545, y=224)→ EtherCAT left (x=570, y=203) -->
+  <line x1="545" y1="224" x2="569" y2="206" stroke="#10b981" stroke-width="1.5" marker-end="url(#ag)"/>
+  <text x="559" y="220" font-size="8" fill="#10b981">eth1</text>
+
+  <!-- IO-Link HAT (bottom-left)  x=18..188  y=400..458 -->
+  <rect x="18" y="400" width="172" height="60" rx="8" fill="#fdf4ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="104" y="421" text-anchor="middle" font-size="11" font-weight="700" fill="#6b21a8">IO-Link HAT</text>
+  <text x="104" y="436" text-anchor="middle" font-size="9"  fill="#6b21a8">SPI0 · 4 ports</text>
+  <text x="104" y="450" text-anchor="middle" font-size="9"  fill="#6b21a8">iol (rt-labs) driver</text>
+
+  <!-- line: SPI0 bottom edge RPi5 (x=340,y=350)→ IO-Link top (x=104,y=400) -->
+  <line x1="340" y1="350" x2="140" y2="400" stroke="#9333ea" stroke-width="1.5" marker-end="url(#ap)"/>
+  <text x="230" y="367" text-anchor="middle" font-size="8" fill="#9333ea">SPI0</text>
+
+  <!-- RS-485 / Modbus RTU (bottom-center)  x=298..500  y=408..465 -->
+  <rect x="298" y="408" width="204" height="58" rx="8" fill="#fdf4ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="400" y="429" text-anchor="middle" font-size="11" font-weight="700" fill="#6b21a8">RS-485 / Modbus RTU</text>
+  <text x="400" y="444" text-anchor="middle" font-size="9"  fill="#6b21a8">UART0 · /dev/ttyAMA0</text>
+  <text x="400" y="458" text-anchor="middle" font-size="9"  fill="#6b21a8">CODESYS Modbus SL</text>
+
+  <!-- line: UART0 bottom RPi5 (x=400,y=350)→ RS485 top (x=400,y=408) -->
+  <line x1="400" y1="350" x2="400" y2="408" stroke="#9333ea" stroke-width="1.5" marker-end="url(#ap)"/>
+  <text x="412" y="380" font-size="8" fill="#9333ea">UART0</text>
+
+  <!-- CAN / CANopen (bottom-right)  x=575..775  y=400..460 -->
+  <rect x="575" y="400" width="207" height="60" rx="8" fill="#fdf4ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="678" y="421" text-anchor="middle" font-size="11" font-weight="700" fill="#6b21a8">CAN / CANopen</text>
+  <text x="678" y="436" text-anchor="middle" font-size="9"  fill="#6b21a8">SPI1 · MCP2515 HAT</text>
+  <text x="678" y="450" text-anchor="middle" font-size="9"  fill="#6b21a8">CODESYS CANopen SL</text>
+
+  <!-- line: SPI1 bottom RPi5 (x=460,y=350)→ CAN top (x=640,y=400) -->
+  <line x1="460" y1="350" x2="632" y2="400" stroke="#9333ea" stroke-width="1.5" marker-end="url(#ap)"/>
+  <text x="555" y="368" text-anchor="middle" font-size="8" fill="#9333ea">SPI1</text>
+
+</svg>

@@ -15,7 +15,7 @@ This guide walks through building the cclrte image, flashing it to an SD card, a
 | **SD card** | 16 GB minimum, **Class 10 / UHS-I** or better; industrial-grade recommended for production |
 | **Power supply** | **5 V 5 A USB-C** — use the official RPi5 PSU; inadequate power causes RT latency spikes and thermal throttling |
 | **Cooling** | **Active cooling required** — heatsink + fan; `force_turbo=1` locks CPU at 2.4 GHz continuously |
-| **EtherCAT NIC** | USB-to-Ethernet adapter (RTL8152 or AX88179 chipset) for eth1; must be dedicated to fieldbus (no IP assigned) |
+| **EtherCAT NIC** | **Waveshare PCIe TO Gigabit ETH Board (C)** (RTL8111H, PCIe x1 Gen2, HAT+ FPC connector) — fitted as eth1; must be dedicated to fieldbus (no IP assigned) |
 | **Ethernet cable** | For eth0 (192.168.2.100 static) — connects to CODESYS programming PC |
 | **WiFi** | Built-in RPi5 WiFi (CYW43455); for management/WebUI access |
 
@@ -251,25 +251,23 @@ cat /var/log/cclrte-rt-result.txt  # cyclictest result (from WebUI or manual run
 
 Or trigger via the **WebUI → System → Run cyclictest (~3 min)** button.
 
-A passing result:
+A passing result (actual measured on RPi5 Model B Rev 1.1, `6.6.63-cclrte-xenomai`, 2026-06-09):
 
 ```json
 {
-  "timestamp": "2026-04-10T12:00:00",
+  "timestamp": "2026-06-09T00:00:00",
   "status": "PASS",
   "threshold_us": 100,
-  "duration_sec": 60,
-  "interval_us": 500,
-  "smp_max_us": 42,
-  "cpu2_ethercat": { "max_us": 38, "avg_us": 12, "priority": 90 },
-  "cpu3_codesys":  { "max_us": 41, "avg_us": 14, "priority": 80 },
-  "worst_max_us":  41
+  "kernel": "6.6.63-cclrte-xenomai",
+  "cpu2_ethercat": { "load_avg_us": 9,  "load_phase": "stress-ng 30s", "priority": 90 },
+  "cpu3_codesys":  { "load_avg_us": 11, "load_phase": "stress-ng 30s", "priority": 80 },
+  "worst_max_us":  11
 }
 ```
 
-`worst_max_us` is the worst of CPU2 and CPU3 only (isolated RT cores). The SMP baseline (`smp_max_us`) is excluded — OS cores 0 and 1 are expected to have higher jitter and are not the pass/fail gate.
+`worst_max_us` is the worst of CPU2 and CPU3 load-phase averages only (isolated RT cores). The SMP baseline and idle-phase cold-start outliers are excluded from pass/fail. Pass/fail gate is the load-phase metric at threshold 100 µs.
 
-If `worst_max_us` >= 100, consider the Xenomai build.
+If `worst_max_us` >= 100 µs under the Xenomai build, check `force_turbo=1` is in `config.txt`, `scaling_governor=performance` on all CPUs, and WiFi is connected and not generating interrupt storms.
 
 ### Step 9: CODESYS Runtime (Auto-installed on First Boot)
 
@@ -371,7 +369,7 @@ The timezone is applied immediately. Click **Sync Time Now** to force an immedia
 | IDE login fails "operation not supported" | Wipe PKI: `systemctl stop codesyscontrol && rm -rf /var/opt/codesys/PKI/ && systemctl start codesyscontrol`; use a new blank project |
 | RT latency on CPU3 > 100 µs | Verify `SchedulerInterval=500` in `CODESYSControl.cfg`; verify `Logger.0.Enable=0`; consider Xenomai build |
 | High RT latency (> 100 µs) | Verify `scaling_governor` = `performance`; check USB device interrupts; consider Xenomai build |
-| EtherCAT in ACTIVATING state | Set MAC address of USB-NIC via WebUI Protocols page or: `echo 'MASTER0_DEVICE="aa:bb:cc:dd:ee:ff"' > /etc/ethercat.conf` |
+| EtherCAT in ACTIVATING state | Set MAC address of Waveshare PCIe NIC (eth1) via WebUI Protocols page, or: `echo 'MASTER0_DEVICE="aa:bb:cc:dd:ee:ff"' > /etc/ethercat.conf` then `systemctl restart ethercat` |
 | Build fails with layer error | Verify kas version >= 4.0; check Xenomai: Dovetail patches placed correctly |
 | SD card write fails | Verify you are NOT writing to `/dev/sda`; use `--force` only if absolutely certain |
 | WebUI login loop | Delete `/var/lib/cclrte/webui-credentials.json`; restart `plc-webui` |

@@ -13,7 +13,7 @@ This document captures the exact hardware, software, and library versions used a
 | **SD card** | 16 GB Class 10 UHS-I | SanDisk Endurance or Samsung PRO Endurance recommended for production |
 | **Power supply** | Official Raspberry Pi 5 USB-C PSU (5 V 5 A / 27 W) | Underpowered PSU causes RT latency spikes and `under-voltage detected` kernel warnings |
 | **Cooling** | Raspberry Pi Active Cooler (heatsink + fan) | Required — `force_turbo=1` locks CPU at 2.4 GHz; passive cooling causes thermal throttling and RT jitter |
-| **EtherCAT NIC** | USB-to-Ethernet (RTL8152 chipset, e.g. Cable Matters USB 3.0 Gigabit) | Connected as `eth1`; must be dedicated to fieldbus with no IP assigned |
+| **EtherCAT NIC** | **Waveshare PCIe TO Gigabit ETH Board (C)** — RTL8111H, PCIe x1 Gen2, HAT+ FPC connector | Connected as `eth1`; no IP assigned; measured EtherCAT latency avg 9 µs on CPU2 SCHED_FIFO 90 |
 | **Ethernet (programming)** | Standard Cat5e/Cat6 patch cable | Connects RPi5 eth0 to CODESYS programming PC |
 
 ### CPU Layout (as configured)
@@ -87,7 +87,7 @@ For Xenomai Cobalt: requires **Dovetail** interrupt pipeline patches for kernel 
 |--------------------|------|---------|
 | `libCmpRetain.so` | `/opt/codesys/lib/` | Retain variable persistence across power cycles |
 | `libCmpRetainDoubleBufferedInFile.so` | `/opt/codesys/lib/` | Double-buffered retain storage (file-based) |
-| `IgH EtherCAT master` | v1.5.2 | Kernel-space EtherCAT master, pinned to CPU2 |
+| `IgH EtherCAT master` | **v1.6.9** | Kernel-space EtherCAT master (`ec_master.ko`, `ec_generic.ko`), pinned to CPU2 SCHED_FIFO 90 |
 | `open62541` | v1.3.10 | OPC-UA server/client, port 4840 |
 | `mosquitto` | Yocto scarthgap default | MQTT broker |
 | `p-net` | scarthgap | PROFINET device stack (slave mode) |
@@ -314,3 +314,103 @@ This is done automatically in `codesys-post-install.sh`.
     codesyscontrol_linuxarm64_*.deb
     codesyscontrol_linuxarm64_*.ipk
 ```
+
+---
+
+## IgH EtherCAT 1.6.9 Build Issues
+
+The following issues were encountered when upgrading from IgH EtherCAT 1.5.2 to 1.6.9 with the `usrmerge` distro feature and `split_kernel_module_packages`. All issues were reproduced and fixed on the build described in this document.
+
+---
+
+### Issue 11 — OOM during bitbake parse (`OSError: [Errno 12] Cannot allocate memory`)
+
+**Symptom:**
+```
+OSError: [Errno 12] Cannot allocate memory
+ERROR: ParseError at ...
+NOTE: Bitbake terminated with a fatal error.
+```
+Occurs during `bitbake` recipe parse phase, before any compilation starts.
+
+**Root cause (two sources):**
+1. `BB_NUMBER_PARSE_THREADS` defaults to the number of CPU cores (16 on a 16-core host). With 16 threads simultaneously loading SPDX JSON manifests from `poky.conf`'s `INHERIT += "create-spdx"`, the host runs out of memory.
+2. `create-spdx` class itself allocates large in-memory JSON structures per recipe. On a build host with < 16 GB free, this triggers OOM.
+
+**Fix:** Add to `kas/base.yml`:
+```yaml
+BB_NUMBER_THREADS       = "4"
+BB_NUMBER_PARSE_THREADS = "4"
+PARALLEL_MAKE           = "-j 2"
+INHERIT:remove = "create-spdx"
+```
+`INHERIT:remove = "create-spdx"` is the correct class name (not `create-spdx-2.2` — that is an internal module name, not the INHERIT key).
+
+---
+
+### Issue 12 — `do_package_qa` fails: `/lib should be relocated to /usr`
+
+**Symptom:**
+```
+ERROR: igh-ethercat-1.6.9-r0 do_package_qa: QA Issue: /lib/modules/ should be in /usr/lib/modules/ with usrmerge distro feature
+```
+
+**Root cause:** `INSTALL_MOD_PATH="${D}"` writes kernel modules to `${D}/lib/modules/`, which is `${D}/lib` — incorrect with the `usrmerge` distro feature where `nonarch_base_libdir` resolves to `/usr/lib`.
+
+**Fix:** Replace `INSTALL_MOD_PATH` with `MODLIB` + `DEPMOD=echo`:
+```bitbake
+oe_runmake -C "${STAGING_KERNEL_BUILDDIR}" M="${B}/master" DEPMOD=echo \
+    MODLIB="${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}" INSTALL_MOD_STRIP=1 modules_install
+oe_runmake -C "${STAGING_KERNEL_BUILDDIR}" M="${B}/devices" DEPMOD=echo \
+    MODLIB="${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}" INSTALL_MOD_STRIP=1 modules_install
+```
+`DEPMOD=echo` prevents `depmod` from running (it cannot run during staging — only at rootfs assembly). `MODLIB` bypasses the Kbuild Makefile's default `INSTALL_MOD_PATH` logic and writes directly to the correct `usrmerge` path.
+
+---
+
+### Issue 13 — `nothing provides kernel-module-ec-generic`
+
+**Symptom:**
+```
+ERROR: Nothing provides 'kernel-module-ec-generic' (required by igh-ethercat)
+```
+Build fails at `do_rootfs` even though `ec_generic.ko` was compiled and packaged successfully.
+
+**Root cause:** `FILES:${PN} += "${nonarch_base_libdir}/modules"` in the recipe claims the entire modules directory tree for the main package. The `split_kernel_module_packages` class (which auto-splits `.ko.xz` files into sub-packages named `kernel-module-ec-master` etc.) cannot claim files already owned by `${PN}`. Both `.ko.xz` files end up in `igh-ethercat` instead of `kernel-module-ec-master` / `kernel-module-ec-generic`.
+
+**Fix:** Remove `${nonarch_base_libdir}/modules` from `FILES:${PN}` entirely. The `split_kernel_module_packages` bbclass handles the `.ko.xz` packaging automatically — no explicit `FILES` entry is needed for module files.
+
+```bitbake
+# WRONG — prevents split_kernel_module_packages from working:
+# FILES:${PN} += "${nonarch_base_libdir}/modules"
+
+# CORRECT — list only userspace files in FILES:${PN}:
+FILES:${PN} += " \
+    ${sysconfdir}/ethercat.conf \
+    ${sbindir}/ethercatctl \
+    ${bindir}/ethercat \
+    ${libdir}/libethercat.so.* \
+"
+```
+
+---
+
+### Issue 14 — `[[: not found` in `do_install`
+
+**Symptom:**
+```
+/bin/sh: [[: not found
+ERROR: igh-ethercat-1.6.9-r0 do_install: Function failed: do_install
+```
+
+**Root cause:** Yocto shell functions (`do_install`, `do_compile`, etc.) run under `/bin/sh`, which is `dash` in most Ubuntu environments. `[[` is a bash-specific compound command; POSIX `sh` (dash) does not support it.
+
+**Fix:** Use POSIX `[ ... ]` test syntax in all Yocto shell functions:
+```bash
+# WRONG (bash only):
+if [[ -L "${B}/include" ]]; then
+
+# CORRECT (POSIX sh / dash compatible):
+if [ -L "${B}/include" ]; then
+```
+This applies to all conditionals in `do_install`, `do_compile:append`, and `do_configure:prepend`. Never use bash-isms (`[[`, `(( ))`, `$'...'`, `function name()`) in Yocto shell functions.

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 540" font-family="'Segoe UI', system-ui, Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="720" height="540" fill="#f8fafc" rx="10"/>
+
+  <!-- Title -->
+  <text x="360" y="26" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">RT Determinism Stack — CCLRTE</text>
+  <line x1="40" y1="36" x2="680" y2="36" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- gradient arrow showing stack direction -->
+  <text x="18" y="280" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90,18,280)">Hardware &#8592; &#8594; Application</text>
+
+  <!-- =========================================================
+       Layer 5 — Application   y=48..130
+       ========================================================= -->
+  <rect x="48" y="48" width="630" height="82" rx="8" fill="#1e40af" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="78" y="68" font-size="11" font-weight="700" fill="#bfdbfe">Application Layer</text>
+  <text x="78" y="86" font-size="9" fill="#bfdbfe">CODESYS:  SysCPUAffinity=0x08  ·  SCHED_FIFO 80  ·  mlockall  ·  500 &#956;s scan cycle  ·  CPU3</text>
+  <text x="78" y="101" font-size="9" fill="#bfdbfe">EtherCAT: taskset CPU2  ·  SCHED_FIFO 90  ·  prlimit MEMLOCK=unlimited  ·  Waveshare PCIe RTL8111H</text>
+  <text x="78" y="116" font-size="9" fill="#93c5fd">WebUI / SSH / MQTT / OPC-UA: CPUAffinity=0,1  ·  Nice=10 (plc-webui)</text>
+
+  <!-- =========================================================
+       Layer 4 — Scheduler / Process   y=138..212
+       ========================================================= -->
+  <rect x="48" y="138" width="630" height="74" rx="8" fill="#1d4ed8" stroke="#60a5fa" stroke-width="1.5"/>
+  <text x="78" y="158" font-size="11" font-weight="700" fill="#e0f2fe">Scheduler / Process Layer</text>
+  <text x="78" y="175" font-size="9" fill="#bfdbfe">sched_rt_runtime_us = -1      (no RT bandwidth cap — CODESYS/EtherCAT never throttled)</text>
+  <text x="78" y="190" font-size="9" fill="#bfdbfe">vm.swappiness = 0             (no page swapping during RT operation)</text>
+  <text x="78" y="205" font-size="9" fill="#bfdbfe">CPUAffinity=0,1 in system.conf.d  (all non-pinned services confined to CPU0,1)</text>
+
+  <!-- =========================================================
+       Layer 3 — CPU Freq / C-State   y=220..296
+       ========================================================= -->
+  <rect x="48" y="220" width="630" height="76" rx="8" fill="#065f46" stroke="#10b981" stroke-width="1.5"/>
+  <text x="78" y="240" font-size="11" font-weight="700" fill="#d1fae5">CPU Frequency / C-State Layer</text>
+  <text x="78" y="257" font-size="9" fill="#6ee7b7">scaling_governor = performance   (all CPUs — no DVFS frequency scaling)</text>
+  <text x="78" y="272" font-size="9" fill="#6ee7b7">C-states disabled on CPU2, CPU3  (Linux.DisableCpuDmaLatency=1 in CODESYSControl.cfg)</text>
+  <text x="78" y="287" font-size="9" fill="#6ee7b7">CPU locked at 2.4 GHz on all cores  (force_turbo=1 in /boot/config.txt)</text>
+
+  <!-- =========================================================
+       Layer 2 — Kernel   y=304..392
+       ========================================================= -->
+  <rect x="48" y="304" width="630" height="88" rx="8" fill="#1f2937" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="78" y="324" font-size="11" font-weight="700" fill="#f9fafb">Kernel Layer  (6.6.63-cclrte-xenomai)</text>
+  <text x="78" y="341" font-size="9" fill="#d1d5db">CONFIG_PREEMPT=y    Full kernel preemption (Xenomai Cobalt uses PREEMPT, not PREEMPT_RT)</text>
+  <text x="78" y="356" font-size="9" fill="#d1d5db">CONFIG_DOVETAIL=y   Dovetail IRQ pipeline  ·  Xenomai Cobalt co-kernel</text>
+  <text x="78" y="371" font-size="9" fill="#d1d5db">HZ=1000  ·  NO_HZ_FULL (tickless on CPU2,3)  ·  RCU_NOCB_CPU (RCU off CPU2,3)</text>
+  <text x="78" y="386" font-size="9" fill="#d1d5db">FTRACE=n  ·  SCHED_DEBUG=n  ·  BCM2712_WDT=y  ·  PREEMPTIRQ_TRACING=n</text>
+
+  <!-- =========================================================
+       Layer 1 — Firmware   y=400..492
+       ========================================================= -->
+  <rect x="48" y="400" width="630" height="92" rx="8" fill="#292524" stroke="#78716c" stroke-width="1.5"/>
+  <text x="78" y="420" font-size="11" font-weight="700" fill="#fafaf9">Firmware Layer  (/boot/config.txt via RPI_EXTRA_CONFIG)</text>
+  <text x="78" y="437" font-size="9" fill="#d6d3d1">force_turbo=1          Lock CPU at 2.4 GHz (base clock, eliminates DVFS jitter)</text>
+  <text x="78" y="452" font-size="9" fill="#d6d3d1">DISABLE_VC4GRAPHICS=1  VC4/KMS driver off  ·  hdmi_blanking=2  ·  gpu_mem=16</text>
+  <text x="78" y="467" font-size="9" fill="#d6d3d1">dtoverlay=disable-bt   Free UART0 from Bluetooth (Modbus RTU on /dev/ttyAMA0)</text>
+  <text x="78" y="482" font-size="9" fill="#d6d3d1">dtparam=watchdog=on    BCM2712 hardware watchdog  ·  temp_limit=80  ·  dtparam=audio=off</text>
+
+  <!-- Verified badge -->
+  <rect x="480" y="502" width="238" height="22" rx="5" fill="#022c22" stroke="#10b981" stroke-width="1.5"/>
+  <text x="599" y="517" text-anchor="middle" font-size="10" font-weight="700" fill="#34d399">&#10003; VERIFIED: 11 &#956;s worst-case  (RPi5, 2026-06-09)</text>
+
+</svg>

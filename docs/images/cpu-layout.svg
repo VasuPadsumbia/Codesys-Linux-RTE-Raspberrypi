@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 310" font-family="'Segoe UI', system-ui, Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="800" height="310" fill="#f8fafc" rx="10"/>
+
+  <!-- Title -->
+  <text x="400" y="26" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">CPU Layout — Raspberry Pi 5 BCM2712 (4&#215; Cortex-A76)</text>
+  <line x1="40" y1="36" x2="760" y2="36" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Domain background bands -->
+  <!-- Linux domain: CPU0+CPU1  x=40..400 -->
+  <rect x="40" y="52" width="360" height="220" rx="8" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="220" y="70" text-anchor="middle" font-size="11" font-weight="700" fill="#0369a1">Linux Domain  (general-purpose)</text>
+
+  <!-- RT domain: CPU2+CPU3  x=406..760 -->
+  <rect x="406" y="52" width="354" height="220" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="583" y="70" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d">Real-time Domain  (isolcpus=2,3 · nohz_full=2,3)</text>
+
+  <!-- ============ CPU 0 box  x=50..192  y=80..265 ============ -->
+  <rect x="50" y="80" width="142" height="185" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="121" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">CPU 0</text>
+  <line x1="58" y1="110" x2="184" y2="110" stroke="#93c5fd" stroke-width="1"/>
+  <text x="121" y="126" text-anchor="middle" font-size="9" fill="#1e3a8a">systemd / init</text>
+  <text x="121" y="141" text-anchor="middle" font-size="9" fill="#1e3a8a">systemd-networkd</text>
+  <text x="121" y="156" text-anchor="middle" font-size="9" fill="#1e3a8a">mosquitto (MQTT)</text>
+  <text x="121" y="171" text-anchor="middle" font-size="9" fill="#1e3a8a">open62541 (OPC-UA)</text>
+  <text x="121" y="186" text-anchor="middle" font-size="9" fill="#1e3a8a">udev / journald</text>
+  <text x="121" y="201" text-anchor="middle" font-size="9" fill="#1e3a8a">kernel IRQ threads</text>
+  <line x1="58" y1="213" x2="184" y2="213" stroke="#93c5fd" stroke-width="1"/>
+  <text x="121" y="228" text-anchor="middle" font-size="9" font-weight="600" fill="#1e40af">SCHED_OTHER</text>
+  <text x="121" y="243" text-anchor="middle" font-size="9" fill="#1e40af">CPUAffinity = 0,1</text>
+  <text x="121" y="257" text-anchor="middle" font-size="9" fill="#1e40af">Not isolated</text>
+
+  <!-- ============ CPU 1 box  x=208..392  y=80..265 ============ -->
+  <rect x="208" y="80" width="184" height="185" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="300" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">CPU 1</text>
+  <line x1="216" y1="110" x2="384" y2="110" stroke="#93c5fd" stroke-width="1"/>
+  <text x="300" y="126" text-anchor="middle" font-size="9" fill="#1e3a8a">plc-webui (Flask :8080)</text>
+  <text x="300" y="141" text-anchor="middle" font-size="9" fill="#1e3a8a">sshd</text>
+  <text x="300" y="156" text-anchor="middle" font-size="9" fill="#1e3a8a">chronyd (NTP)</text>
+  <text x="300" y="171" text-anchor="middle" font-size="9" fill="#1e3a8a">watchdog.service</text>
+  <text x="300" y="186" text-anchor="middle" font-size="9" fill="#1e3a8a">fan-control.service</text>
+  <text x="300" y="201" text-anchor="middle" font-size="9" fill="#1e3a8a">rt-verify (cyclictest)</text>
+  <line x1="216" y1="213" x2="384" y2="213" stroke="#93c5fd" stroke-width="1"/>
+  <text x="300" y="228" text-anchor="middle" font-size="9" font-weight="600" fill="#1e40af">SCHED_OTHER</text>
+  <text x="300" y="243" text-anchor="middle" font-size="9" fill="#1e40af">CPUAffinity = 0,1</text>
+  <text x="300" y="257" text-anchor="middle" font-size="9" fill="#1e40af">Not isolated</text>
+
+  <!-- ============ CPU 2 box  x=416..572  y=80..265 ============ -->
+  <rect x="416" y="80" width="156" height="185" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+  <text x="494" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="#065f46">CPU 2</text>
+  <line x1="424" y1="110" x2="564" y2="110" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="494" y="126" text-anchor="middle" font-size="9" fill="#065f46">IgH EtherCAT master</text>
+  <text x="494" y="141" text-anchor="middle" font-size="9" fill="#065f46">ec_master.ko</text>
+  <text x="494" y="156" text-anchor="middle" font-size="9" fill="#065f46">ec_generic.ko</text>
+  <text x="494" y="171" text-anchor="middle" font-size="9" fill="#065f46">Waveshare PCIe NIC IRQ</text>
+  <text x="494" y="186" text-anchor="middle" font-size="9" fill="#065f46">&#8212; 0% idle (no slaves)</text>
+  <text x="494" y="201" text-anchor="middle" font-size="9" fill="#065f46">avg 9 &#956;s RT latency</text>
+  <line x1="424" y1="213" x2="564" y2="213" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="494" y="228" text-anchor="middle" font-size="9" font-weight="700" fill="#065f46">SCHED_FIFO 90</text>
+  <text x="494" y="243" text-anchor="middle" font-size="9" fill="#065f46">isolcpus=2 · nohz_full</text>
+  <text x="494" y="257" text-anchor="middle" font-size="9" fill="#065f46">rcu_nocbs=2</text>
+
+  <!-- ============ CPU 3 box  x=588..750  y=80..265 ============ -->
+  <rect x="588" y="80" width="162" height="185" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+  <text x="669" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="#065f46">CPU 3</text>
+  <line x1="596" y1="110" x2="742" y2="110" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="669" y="126" text-anchor="middle" font-size="9" fill="#065f46">codesyscontrol</text>
+  <text x="669" y="141" text-anchor="middle" font-size="9" fill="#065f46">CODESYS 3.5.21.41</text>
+  <text x="669" y="156" text-anchor="middle" font-size="9" fill="#065f46">500 &#956;s scan cycle</text>
+  <text x="669" y="171" text-anchor="middle" font-size="9" fill="#065f46">mlockall (no page faults)</text>
+  <text x="669" y="186" text-anchor="middle" font-size="9" fill="#065f46">80% load @ 100% FB_LoadTest</text>
+  <text x="669" y="201" text-anchor="middle" font-size="9" fill="#065f46">avg 11 &#956;s RT latency</text>
+  <line x1="596" y1="213" x2="742" y2="213" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="669" y="228" text-anchor="middle" font-size="9" font-weight="700" fill="#065f46">SCHED_FIFO 80</text>
+  <text x="669" y="243" text-anchor="middle" font-size="9" fill="#065f46">isolcpus=3 · nohz_full</text>
+  <text x="669" y="257" text-anchor="middle" font-size="9" fill="#065f46">SysCPUAffinity=0x08</text>
+
+  <!-- domain separator vertical line -->
+  <line x1="400" y1="52" x2="400" y2="272" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,2"/>
+
+  <!-- Bottom footnote -->
+  <text x="400" y="293" text-anchor="middle" font-size="9" fill="#64748b">kernel cmdline: isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3 threadirqs preempt=full  ·  RT PASS 11 &#956;s verified on RPi5 hardware (2026-06-09)</text>
+
+</svg>

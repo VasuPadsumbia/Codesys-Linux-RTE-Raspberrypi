@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" font-family="'Segoe UI', system-ui, Arial, sans-serif">
+  <defs>
+    <marker id="adown" viewBox="0 0 10 6" markerWidth="8" markerHeight="6" refX="5" refY="6" orient="auto">
+      <path d="M0,0 L5,6 L10,0 Z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="470" fill="#f8fafc" rx="10"/>
+
+  <!-- Title -->
+  <text x="360" y="26" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">Software Architecture — CCLRTE Build System</text>
+  <line x1="40" y1="36" x2="680" y2="36" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- =========================================================
+       Top: CODESYS IDE (PC)   y=48..88
+       ========================================================= -->
+  <rect x="200" y="48" width="320" height="40" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="360" y="65" text-anchor="middle" font-size="12" font-weight="700" fill="#1e40af">CODESYS Development System (PC)</text>
+  <text x="360" y="81" text-anchor="middle" font-size="9"  fill="#1e40af">Scan Network &#8594; Login &#8594; Download IEC 61131-3 project</text>
+
+  <!-- Arrow down -->
+  <line x1="360" y1="88" x2="360" y2="106" stroke="#6b7280" stroke-width="1.5" marker-end="url(#adown)"/>
+  <text x="400" y="100" font-size="8" fill="#6b7280">TCP 1217 (gateway)</text>
+
+  <!-- =========================================================
+       cclrte Yocto Image   y=108..350
+       ========================================================= -->
+  <rect x="48" y="108" width="624" height="242" rx="10" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+  <text x="360" y="128" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a">cclrte Yocto Image  (Scarthgap · IPK · aarch64)</text>
+  <text x="360" y="143" text-anchor="middle" font-size="9" fill="#475569">MACHINE=rpi5-cclrte-xenomai  ·  DISTRO=cclrte  ·  BB_VERSION 2.8.1  ·  5214 tasks</text>
+
+  <line x1="58" y1="152" x2="662" y2="152" stroke="#cbd5e1" stroke-width="1"/>
+
+  <!-- Component boxes row 1 -->
+  <rect x="62"  y="160" width="148" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <text x="136" y="181" text-anchor="middle" font-size="10" font-weight="700" fill="#f1f5f9">CODESYS Control SL</text>
+  <text x="136" y="196" text-anchor="middle" font-size="8.5" fill="#94a3b8">3.5.21.41 · CPU3 · FIFO 80</text>
+  <text x="136" y="208" text-anchor="middle" font-size="8.5" fill="#94a3b8">500 &#956;s cycle · mlockall</text>
+
+  <rect x="220" y="160" width="148" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <text x="294" y="181" text-anchor="middle" font-size="10" font-weight="700" fill="#f1f5f9">IgH EtherCAT</text>
+  <text x="294" y="196" text-anchor="middle" font-size="8.5" fill="#94a3b8">v1.6.9 · ec_master.ko</text>
+  <text x="294" y="208" text-anchor="middle" font-size="8.5" fill="#94a3b8">ec_generic.ko · CPU2 FIFO 90</text>
+
+  <rect x="378" y="160" width="148" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <text x="452" y="181" text-anchor="middle" font-size="10" font-weight="700" fill="#f1f5f9">open62541 + Mosquitto</text>
+  <text x="452" y="196" text-anchor="middle" font-size="8.5" fill="#94a3b8">OPC-UA v1.3.10 :4840</text>
+  <text x="452" y="208" text-anchor="middle" font-size="8.5" fill="#94a3b8">MQTT broker :1883/:9001</text>
+
+  <rect x="536" y="160" width="148" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="181" text-anchor="middle" font-size="10" font-weight="700" fill="#f1f5f9">plc-webui (Flask)</text>
+  <text x="610" y="196" text-anchor="middle" font-size="8.5" fill="#94a3b8">:8080 · dark industrial</text>
+  <text x="610" y="208" text-anchor="middle" font-size="8.5" fill="#94a3b8">5 pages · PBKDF2 auth</text>
+
+  <!-- systemd services row -->
+  <rect x="62" y="224" width="622" height="38" rx="6" fill="#1f2937" stroke="#4b5563" stroke-width="1.5"/>
+  <text x="373" y="240" text-anchor="middle" font-size="10" font-weight="700" fill="#f9fafb">systemd services</text>
+  <text x="373" y="255" text-anchor="middle" font-size="8.5" fill="#9ca3af">rt-setup &#8594; ethercat &#8594; codesyscontrol   &#183;   codesys-firstboot &#183; plc-webui &#183; mosquitto &#183; systemd-networkd &#183; fan-control &#183; rt-verify</text>
+
+  <!-- Kernel row -->
+  <rect x="62" y="274" width="622" height="34" rx="6" fill="#111827" stroke="#374151" stroke-width="1.5"/>
+  <text x="373" y="291" text-anchor="middle" font-size="10" font-weight="700" fill="#f3f4f6">PREEMPT_RT (rpi5-cclrte) / Xenomai Cobalt (rpi5-cclrte-xenomai)  ·  kernel 6.6.63  ·  HZ=1000</text>
+  <text x="373" y="305" text-anchor="middle" font-size="8.5" fill="#6b7280">linux-raspberrypi + kernel config fragments  ·  CONFIG_DOVETAIL=y  ·  isolcpus=2,3  ·  bcm2712_defconfig</text>
+
+  <!-- meta-cclrte layer -->
+  <rect x="62" y="320" width="622" height="22" rx="5" fill="#0c1a2e" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="373" y="335" text-anchor="middle" font-size="9" font-weight="700" fill="#60a5fa">meta-cclrte Yocto layer  ·  Scarthgap LAYERSERIES_COMPAT  ·  KAS 5.3  ·  kas/base.yml + kas/rpi5-xenomai.yml</text>
+
+  <!-- Arrow from image block to KAS block -->
+  <line x1="360" y1="350" x2="360" y2="368" stroke="#6b7280" stroke-width="1.5" marker-end="url(#adown)"/>
+
+  <!-- =========================================================
+       KAS Build System   y=370..410
+       ========================================================= -->
+  <rect x="48" y="370" width="624" height="40" rx="8" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="360" y="389" text-anchor="middle" font-size="11" font-weight="700" fill="#854d0e">KAS Build System  (kas 5.3 · kas build kas/rpi5-xenomai.yml)</text>
+  <text x="360" y="404" text-anchor="middle" font-size="9"  fill="#92400e">poky (scarthgap)  &#183;  meta-openembedded  &#183;  meta-raspberrypi  &#183;  meta-realtime  &#183;  BB_NUMBER_PARSE_THREADS=4  &#183;  INHERIT:remove=create-spdx</text>
+
+  <!-- Arrow from KAS to SD image -->
+  <line x1="360" y1="410" x2="360" y2="428" stroke="#6b7280" stroke-width="1.5" marker-end="url(#adown)"/>
+
+  <!-- =========================================================
+       Output   y=430..460
+       ========================================================= -->
+  <rect x="200" y="430" width="320" height="30" rx="6" fill="#022c22" stroke="#10b981" stroke-width="1.5"/>
+  <text x="360" y="450" text-anchor="middle" font-size="10" font-weight="700" fill="#34d399">cclrte-xenomai-image-rpi5-cclrte-xenomai.rpi-sdimg  &#8594;  dd to SD card</text>
+
+</svg>
